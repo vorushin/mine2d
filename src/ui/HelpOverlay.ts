@@ -60,6 +60,8 @@ export class HelpOverlay {
       ['☄ Meteors', 'From day 3 — red circle = danger! Drops iron/stone'],
       ['🌋 Volcano', 'From night 5 — spreads lava. Destroy with iron pick'],
       ['🩸 Blood Moon', 'Every 5th night — zombies drop 50% more loot'],
+      ['⚡ Lightning', 'During rain — kills zombies near the bolt'],
+      ['✨ Golden Chicken', '20% chance each day — rare! Worth 8 gold'],
     ];
 
     let rowY = contentStartY;

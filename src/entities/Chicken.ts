@@ -9,6 +9,7 @@ import { TEX } from '../gfx/textures';
 export class Chicken {
   readonly sprite: Phaser.GameObjects.Image;
   readonly shadow: Phaser.GameObjects.Ellipse;
+  readonly golden: boolean;
   alive = true;
   hp = 8;
   private scene: Phaser.Scene;
@@ -19,13 +20,18 @@ export class Chicken {
   private fleeMs = 0;
   private clucksMs = 0;
 
-  constructor(scene: Phaser.Scene, world: World, x: number, y: number) {
+  constructor(scene: Phaser.Scene, world: World, x: number, y: number, golden = false) {
     this.scene = scene;
     this.world = world;
+    this.golden = golden;
     this.shadow = scene.add.ellipse(x, y + 6, 12, 3, 0x000000, 0.3).setDepth(8);
     this.sprite = scene.add.image(x, y, TEX.chicken);
-    this.sprite.setScale(1.1);
+    this.sprite.setScale(golden ? 1.3 : 1.1);
     this.sprite.setDepth(9);
+    if (golden) {
+      this.sprite.setTint(0xffd700);
+      scene.tweens.add({ targets: this.sprite, scale: this.sprite.scale * 1.08, yoyo: true, repeat: -1, duration: 500 });
+    }
   }
 
   update(deltaMs: number, playerX: number, playerY: number): void {

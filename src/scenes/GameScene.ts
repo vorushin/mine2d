@@ -49,6 +49,7 @@ export class GameScene extends Phaser.Scene {
   private interactPrompt!: Phaser.GameObjects.Text;
   private rainEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
   private rainActive = false;
+  private lightningTimerMs = 0;
   private stars: Phaser.GameObjects.Image[] = [];
 
   constructor() {
@@ -149,6 +150,19 @@ export class GameScene extends Phaser.Scene {
           }
         }
         if (!placed) break;
+      }
+      // 20% chance to spawn a golden chicken somewhere in the world
+      if (Math.random() < 0.2) {
+        for (let tries = 0; tries < 40; tries++) {
+          const tx = 4 + Math.floor(Math.random() * (WORLD_WIDTH - 8));
+          const ty = 4 + Math.floor(Math.random() * (WORLD_HEIGHT - 8));
+          if (this.world.isWalkable(tx, ty)) {
+            const wc = this.world.tileToWorldCenter(tx, ty);
+            this.chickens.push(new Chicken(this, this.world, wc.x, wc.y, true));
+            this.showHint('✨ A golden chicken is somewhere today!');
+            break;
+          }
+        }
       }
       // Stop rain at dawn
       this.stopRain();
@@ -534,10 +548,19 @@ export class GameScene extends Phaser.Scene {
         const d = Math.hypot(c.x - worldX, c.y - worldY);
         if (d < 20 && this.player.tileDistance(this.world.worldToTile(c.x, c.y).x, this.world.worldToTile(c.x, c.y).y) <= 1.5) {
           hitSomething = true;
-          this.effects.burst(c.x, c.y, 0xffffff, 6, 60, 300, 0.6);
+          this.effects.burst(c.x, c.y, c.golden ? 0xffd700 : 0xffffff, 6, 60, 300, 0.6);
           if (c.takeDamage(dmg)) {
-            this.pickups.push(new Pickup(this, c.x, c.y, 'food', 1));
-            sounds.zombieHit();
+            if (c.golden) {
+              // Golden chicken rewards: lots of gold + food
+              this.pickups.push(new Pickup(this, c.x, c.y, 'gold', 8));
+              this.pickups.push(new Pickup(this, c.x + 8, c.y, 'food', 3));
+              this.effects.burst(c.x, c.y, 0xffd700, 24, 160, 800, 1.6);
+              this.showBanner('✨ GOLDEN CHICKEN', '+8 gold · +3 food');
+              sounds.cake();
+            } else {
+              this.pickups.push(new Pickup(this, c.x, c.y, 'food', 1));
+              sounds.zombieHit();
+            }
           }
         }
       }
@@ -679,6 +702,15 @@ export class GameScene extends Phaser.Scene {
     if (this.combo > 0) {
       this.comboTimerMs -= delta;
       if (this.comboTimerMs <= 0) this.combo = 0;
+    }
+
+    // Lightning strikes during rain
+    if (this.rainActive) {
+      this.lightningTimerMs -= delta;
+      if (this.lightningTimerMs <= 0) {
+        this.lightningTimerMs = 8000 + Math.random() * 8000;
+        this.strikeLightning();
+      }
     }
 
     // Night approaching countdown during day (last 10 seconds)
@@ -1002,6 +1034,35 @@ export class GameScene extends Phaser.Scene {
       this.rainEmitter?.destroy();
       this.rainEmitter = undefined;
     });
+  }
+
+  private strikeLightning(): void {
+    // Pick a random tile in the camera view to strike
+    const cam = this.cameras.main;
+    const wx = cam.worldView.x + Math.random() * cam.worldView.width;
+    const wy = cam.worldView.y + Math.random() * cam.worldView.height;
+    const tp = this.world.worldToTile(wx, wy);
+    // Big bright flash overlay
+    const flash = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0xffffff, 0.85)
+      .setScrollFactor(0).setOrigin(0, 0).setDepth(250);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 180, onComplete: () => flash.destroy() });
+    // Bolt graphics
+    const bolt = this.add.rectangle(wx, wy - 200, 4, 400, 0xf8f8ff, 0.9).setDepth(60);
+    this.tweens.add({ targets: bolt, alpha: 0, duration: 260, onComplete: () => bolt.destroy() });
+    this.cameras.main.shake(240, 0.006);
+    sounds.bossRoar();
+    this.effects.burst(wx, wy, 0xffffaa, 20, 160, 700, 1.4);
+    // Damage any zombie in radius
+    const radius = 48;
+    for (const z of this.zombies) {
+      if (!z.alive) continue;
+      if (Math.hypot(z.sprite.x - wx, z.sprite.y - wy) < radius) {
+        if (z.takeDamage(40)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
+      }
+    }
+    // Set a tile on fire — damage breakable tile at impact
+    const tile = this.world.getTileAt(tp.x, tp.y);
+    if (tile && isBreakable(tile.type)) this.world.damageTile(tp.x, tp.y, 50);
   }
 
   private launchFireworks(): void {
