@@ -16,6 +16,7 @@ export class Player {
   private walkPhase = 0;
 
   private shadow!: Phaser.GameObjects.Ellipse;
+  private weaponSprite!: Phaser.GameObjects.Image;
 
   constructor(scene: Phaser.Scene, state: GameState, world: World) {
     this.scene = scene;
@@ -32,6 +33,15 @@ export class Player {
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     body.setCollideWorldBounds(true);
     body.setSize(18, 18);
+    this.weaponSprite = scene.add.image(spawnWorld.x, spawnWorld.y, TEX.weapon_pickaxe);
+    this.weaponSprite.setDepth(10.5);
+    this.weaponSprite.setScale(1.0);
+  }
+
+  setEquippedWeaponTexture(key: string | null): void {
+    if (!key) { this.weaponSprite.setVisible(false); return; }
+    this.weaponSprite.setVisible(true);
+    this.weaponSprite.setTexture(key);
   }
 
   get x(): number { return this.sprite.x; }
@@ -64,6 +74,11 @@ export class Player {
 
     // Shadow follows
     this.shadow.setPosition(this.sprite.x, this.sprite.y + 12);
+    // Weapon follows — offset based on facing
+    const wx = this.sprite.x + (this.sprite.flipX ? -9 : 9);
+    const wy = this.sprite.y + 4;
+    this.weaponSprite.setPosition(wx, wy);
+    this.weaponSprite.setFlipX(this.sprite.flipX);
 
     // Damage from lava
     const tilePos = this.world.worldToTile(this.sprite.x, this.sprite.y);

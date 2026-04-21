@@ -5,6 +5,7 @@ import { GameState, hasItem } from '../state/GameState';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { Modal } from '../ui/ShopModal';
 import { HelpOverlay } from '../ui/HelpOverlay';
+import { Minimap } from '../ui/Minimap';
 
 export class UIScene extends Phaser.Scene {
   private gameScene!: GameScene;
@@ -17,6 +18,7 @@ export class UIScene extends Phaser.Scene {
     label: Phaser.GameObjects.Text;
     countBg: Phaser.GameObjects.Rectangle;
     count: Phaser.GameObjects.Text;
+    keyHint: Phaser.GameObjects.Text;
   }[] = [];
   private helpOverlay: HelpOverlay | null = null;
   private helpButton!: Phaser.GameObjects.Container;
@@ -33,6 +35,7 @@ export class UIScene extends Phaser.Scene {
   private interactButton?: Phaser.GameObjects.Arc;
   private skipNightButton?: Phaser.GameObjects.Rectangle;
   private shopCompass?: Phaser.GameObjects.Container;
+  private minimap?: Minimap;
 
   constructor() {
     super('UI');
@@ -48,6 +51,7 @@ export class UIScene extends Phaser.Scene {
     this.buildHud();
     this.buildHelpButton();
     this.buildShopCompass();
+    this.minimap = new Minimap(this, this.gameScene);
 
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (isTouch) {
@@ -88,9 +92,13 @@ export class UIScene extends Phaser.Scene {
         fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: '#ffcc66',
         fontStyle: 'bold',
       }).setOrigin(0.5);
+      const keyHintText = i < 9 ? String(i + 1) : i === 9 ? '0' : '';
+      const keyHint = this.add.text(0, 0, keyHintText, {
+        fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: '#9eb0c4',
+      }).setOrigin(0, 0);
 
-      this.hotbarContainer.add([bg, icon, label, countBg, count]);
-      this.hotbarCells.push({ bg, icon, label, countBg, count });
+      this.hotbarContainer.add([bg, icon, label, countBg, count, keyHint]);
+      this.hotbarCells.push({ bg, icon, label, countBg, count, keyHint });
       const idx = i;
       bg.setInteractive({ useHandCursor: true });
       bg.on('pointerdown', () => {
@@ -230,6 +238,8 @@ export class UIScene extends Phaser.Scene {
       const countY = y - cellH / 2 + Math.round(10 * scale);
       cell.countBg.setPosition(countX, countY);
       cell.count.setPosition(countX, countY);
+      cell.keyHint.setPosition(x - cellW / 2 + 4, y - cellH / 2 + 3);
+      cell.keyHint.setFontSize(Math.max(8, Math.round(10 * scale)));
     }
     this.hpLabel.setPosition(22, 22);
     this.phaseLabel.setPosition(w / 2, 22);
@@ -247,6 +257,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (this.helpButton) this.helpButton.setPosition(22, h - cellH - 34);
+    this.minimap?.layout();
 
     if (this.attackButton) this.attackButton.setPosition(w - 60, h - cellH - 80);
     if (this.interactButton) this.interactButton.setPosition(w - 130, h - cellH - 50);
@@ -262,6 +273,7 @@ export class UIScene extends Phaser.Scene {
     this.renderHotbar();
     this.renderInventory();
     this.renderShopCompass();
+    this.minimap?.update();
   }
 
   private renderShopCompass(): void {

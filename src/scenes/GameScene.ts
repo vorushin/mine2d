@@ -6,6 +6,7 @@ import { Zombie, specForNight, specForBoss } from '../entities/Zombie';
 import { Projectile, ProjectileSpawn } from '../entities/Projectile';
 import { TurretInstance, makeTurretBarrel, tickTurrets } from '../entities/Turret';
 import { Pickup } from '../entities/Pickup';
+import { Dog } from '../entities/Dog';
 import { InputSystem } from '../systems/Input';
 import { DayNightCycle } from '../systems/DayNightCycle';
 import { SaveStore } from '../systems/SaveStore';
@@ -25,6 +26,7 @@ export class GameScene extends Phaser.Scene {
   projectiles: Projectile[] = [];
   turrets: TurretInstance[] = [];
   pickups: Pickup[] = [];
+  dog?: Dog;
   input2!: InputSystem;
   readonly events2 = new Phaser.Events.EventEmitter();
   private nightSpawned = 0;
@@ -35,6 +37,8 @@ export class GameScene extends Phaser.Scene {
   private hintText!: Phaser.GameObjects.Text;
   private reticle!: Phaser.GameObjects.Rectangle;
   private interactPrompt!: Phaser.GameObjects.Text;
+  private rainEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
+  private rainActive = false;
 
   constructor() {
     super('Game');
@@ -59,6 +63,7 @@ export class GameScene extends Phaser.Scene {
     this.effects = new Effects(this);
 
     this.player = new Player(this, this.state, this.world);
+    this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
     this.cameras.main.startFollow(this.player.sprite, true, 0.12, 0.12);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
     this.cameras.main.setZoom(1.4);
@@ -80,7 +85,20 @@ export class GameScene extends Phaser.Scene {
       for (const z of this.zombies) z.die();
       this.zombies = [];
       sounds.dawn();
-      this.showBanner('☼ DAWN', 'you survived! nice work');
+      // +max HP every time you survive
+      this.state.playerMaxHp += 15;
+      this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + 40);
+      this.showBanner('☼ DAWN', `you survived! +15 max HP · ${this.state.playerHp}/${this.state.playerMaxHp}`);
+      // Heal dog to full at dawn, or revive if he fell
+      if (this.dog?.alive) this.dog.heal(this.dog.maxHp);
+      else {
+        this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
+        this.showHint('🐶 Rex is back!');
+      }
+      // Stop rain at dawn
+      this.stopRain();
+      // 30% chance of rain the next day
+      if (Math.random() < 0.3) this.startRain();
     });
     this.cycle.events.on('phase_changed', (phase: GameState['phase']) => {
       if (phase === 'day') this.showHint('Day — mine, build, craft');
@@ -101,6 +119,7 @@ export class GameScene extends Phaser.Scene {
     this.input2.events.on('hotbar_select', (slot: number) => {
       this.state.hotbarSlot = slot;
       this.scene.get('UI').events.emit('hotbar_changed');
+      this.refreshPlayerWeapon();
       sounds.click();
     });
     this.input2.events.on('interact', () => this.handleInteractPressed());
@@ -111,16 +130,36 @@ export class GameScene extends Phaser.Scene {
       this.scene.get('UI').events.emit('open_modal', 'craft');
     });
 
+    // P — drink a potion
+    this.input.keyboard?.on('keydown-P', () => {
+      if (!hasItem(this.state.inventory, 'potion', 1)) {
+        this.showHint('No potions — buy at shop');
+        return;
+      }
+      removeItem(this.state.inventory, 'potion', 1);
+      const heal = 40;
+      this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + heal);
+      this.popNumber(this.player.x, this.player.y - 20, `+${heal} HP`, '#9effa0');
+      sounds.pickup();
+      this.effects.burst(this.player.x, this.player.y, 0xff66aa, 10, 90, 400, 1);
+    });
+
     this.input.on('wheel', (_p: any, _obj: any, _dx: number, dy: number) => {
       const dir = dy > 0 ? 1 : -1;
       this.state.hotbarSlot = (this.state.hotbarSlot + dir + HOTBAR.length) % HOTBAR.length;
       this.scene.get('UI').events.emit('hotbar_changed');
+      this.refreshPlayerWeapon();
     });
 
     // Zombie-world events → sounds + particles
     this.events.on('zombie_hit_player', (x: number, y: number) => {
       sounds.playerHurt();
       this.effects.bloodBurst(x, y, 0x8a1a1a);
+      this.dog?.reactToPlayerHit();
+    });
+    this.events.on('dog_bite', (x: number, y: number) => {
+      this.effects.bloodBurst(x, y, 0x8a1a1a);
+      sounds.zombieHit();
     });
     this.events.on('zombie_hit_wall', (x: number, y: number, tileType: TileType) => {
       sounds.wallHit();
@@ -171,6 +210,8 @@ export class GameScene extends Phaser.Scene {
 
     // Draw world-edge fence so map boundary is visible
     this.drawWorldBorder();
+
+    this.refreshPlayerWeapon();
 
     this.scene.launch('UI', { gameScene: this });
     this.showHint('Day 1 — mine, build, press H for help');
@@ -341,6 +382,18 @@ export class GameScene extends Phaser.Scene {
           if (res.drop && res.drop.count > 0) {
             this.pickups.push(new Pickup(this, wc.x, wc.y, res.drop.material, res.drop.count));
           }
+          // Chests spill a generous loot pile
+          if (t.type === TileType.Chest) {
+            const loot: { m: MaterialId; c: number }[] = [
+              { m: 'wood', c: 4 }, { m: 'stone', c: 3 }, { m: 'gold', c: 2 }, { m: 'arrow', c: 6 },
+            ];
+            for (const l of loot) {
+              this.pickups.push(new Pickup(this, wc.x + (Math.random() - 0.5) * 16, wc.y + (Math.random() - 0.5) * 16, l.m, l.c));
+            }
+            this.effects.burst(wc.x, wc.y, 0xffd700, 20, 180, 700, 1.4);
+            sounds.cake();
+            this.showHint('Chest unlocked! 🎁');
+          }
         }
       } else if (res.reason === 'weak_tool') this.showHint('Need better pickaxe — craft one with C');
       return;
@@ -362,7 +415,7 @@ export class GameScene extends Phaser.Scene {
           this.effects.bloodBurst(z.sprite.x, z.sprite.y, 0x8a1a1a);
           this.popNumber(z.sprite.x, z.sprite.y - 18, `-${dmg}`, '#ffdd66');
           sounds.zombieHit();
-          if (z.takeDamage(dmg)) this.onZombieKilled(z.sprite.x, z.sprite.y);
+          if (z.takeDamage(dmg)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
         }
       }
       const t = this.world.getTileAt(tp.x, tp.y);
@@ -464,7 +517,22 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const z of this.zombies) z.update(delta, this.player, this.zombies);
+    // Zombies bite the dog if they're adjacent to it
+    if (this.dog?.alive) {
+      for (const z of this.zombies) {
+        if (!z.alive) continue;
+        const d = Math.hypot(z.sprite.x - this.dog.x, z.sprite.y - this.dog.y);
+        if (d < 22 && Math.random() < delta / 1200) {
+          this.dog.hurt(z.damage / 2);
+          this.effects.bloodBurst(this.dog.x, this.dog.y, 0x8a1a1a);
+        }
+      }
+    }
     this.zombies = this.zombies.filter((z) => z.alive);
+
+    if (this.dog?.alive) {
+      this.dog.update(delta, this.player, this.zombies);
+    }
 
     // Turrets
     const spawns = tickTurrets(this.turrets, this.zombies, this.world, delta);
@@ -494,7 +562,7 @@ export class GameScene extends Phaser.Scene {
           this.effects.bloodBurst(z.sprite.x, z.sprite.y, 0x8a1a1a);
           this.popNumber(z.sprite.x, z.sprite.y - 18, `-${pr.damage}`, pr.kind === 'bullet' ? '#ffaa33' : '#ddddff');
           sounds.zombieHit();
-          if (z.takeDamage(pr.damage)) this.onZombieKilled(z.sprite.x, z.sprite.y);
+          if (z.takeDamage(pr.damage)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
           pr.destroy();
           break;
         }
@@ -533,7 +601,7 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(600, () => {
         SaveStore.updateBestScore(this.state.score);
         this.scene.stop('UI');
-        this.scene.start('GameOver', { score: this.state.score, stats: this.state.stats });
+        this.scene.start('GameOver', { score: this.state.score, stats: this.state.stats, state: this.state });
       });
     }
   }
@@ -565,11 +633,20 @@ export class GameScene extends Phaser.Scene {
     this.zombies.push(boss);
     this.effects.burst(wc.x, wc.y, 0xff2020, 24, 140, 500, 1.6);
     this.cameras.main.shake(200, 0.005);
+    // Brief zoom-out for dramatic effect
+    this.tweens.add({
+      targets: this.cameras.main,
+      zoom: 1.1,
+      duration: 300,
+      yoyo: true,
+      hold: 400,
+      onComplete: () => this.cameras.main.setZoom(1.4),
+    });
     sounds.bossRoar();
     this.showBanner('⚠ BOSS', 'a huge zombie approaches');
   }
 
-  private onZombieKilled(x: number, y: number): void {
+  private onZombieKilled(x: number, y: number, variant?: string): void {
     this.scene.get('UI').events.emit('zombie_killed');
     sounds.zombieDie();
     this.effects.bloodExplode(x, y);
@@ -581,6 +658,21 @@ export class GameScene extends Phaser.Scene {
     else if (kills === 10) this.showHint('10 down — nice!');
     else if (kills === 25) this.showHint('Quarter-century!');
     else if (kills === 50) this.showHint('50 kills — zombie slayer');
+
+    // Boss loot — big payoff
+    if (variant === 'boss') {
+      this.showBanner('🏆 BOSS DOWN', 'massive loot!');
+      sounds.cake();
+      this.effects.burst(x, y, 0xffd700, 40, 220, 1000, 2);
+      const bossLoot: { m: MaterialId; c: number }[] = [
+        { m: 'gold', c: 6 }, { m: 'iron', c: 4 }, { m: 'stone', c: 3 },
+        { m: 'potion', c: 1 }, { m: 'bullet', c: 5 }, { m: 'lava', c: 1 },
+      ];
+      for (const l of bossLoot) {
+        this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 28, y + (Math.random() - 0.5) * 28, l.m, l.c));
+      }
+      return;
+    }
 
     // Drops — generous to reward kills
     const drops: { m: MaterialId; c: number }[] = [];
@@ -594,6 +686,19 @@ export class GameScene extends Phaser.Scene {
       if (d.m === 'gold') this.state.stats.goldEarned += d.c;
     }
     this.popNumber(x, y - 30, '+' + (drops.length ? drops.map((d) => d.m[0].toUpperCase()).join('') : 'kill'), '#a0ffa0');
+  }
+
+  refreshPlayerWeapon(): void {
+    const act = HOTBAR[this.state.hotbarSlot];
+    if (!act) { this.player.setEquippedWeaponTexture(null); return; }
+    switch (act.kind) {
+      case 'mine': this.player.setEquippedWeaponTexture('weapon_pickaxe'); break;
+      case 'melee': this.player.setEquippedWeaponTexture('weapon_sword'); break;
+      case 'ranged':
+        this.player.setEquippedWeaponTexture(act.weapon === 'bow' ? 'weapon_bow' : 'weapon_pistol');
+        break;
+      default: this.player.setEquippedWeaponTexture(null);
+    }
   }
 
   private updateInteractPrompt(): void {
@@ -615,6 +720,38 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.interactPrompt.setVisible(false);
     }
+  }
+
+  startRain(): void {
+    if (this.rainActive) return;
+    this.rainActive = true;
+    this.showHint('🌧 It\'s raining today');
+    // Camera-locked emitter covering a band above the visible screen
+    this.rainEmitter = this.add.particles(0, 0, 'raindrop', {
+      x: { min: -20, max: this.scale.width + 100 },
+      y: -20,
+      lifespan: 1200,
+      speedY: { min: 600, max: 900 },
+      speedX: { min: -120, max: -60 },
+      quantity: 3,
+      frequency: 35,
+      scale: { start: 1, end: 1 },
+      alpha: { start: 0.55, end: 0.25 },
+      blendMode: 'NORMAL',
+    });
+    this.rainEmitter.setScrollFactor(0);
+    this.rainEmitter.setDepth(200);
+  }
+
+  stopRain(): void {
+    if (!this.rainActive) return;
+    this.rainActive = false;
+    this.rainEmitter?.stop();
+    // Let existing drops fade out
+    this.time.delayedCall(1500, () => {
+      this.rainEmitter?.destroy();
+      this.rainEmitter = undefined;
+    });
   }
 
   showBanner(title: string, subtitle: string): void {

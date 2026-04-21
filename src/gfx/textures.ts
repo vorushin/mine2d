@@ -39,6 +39,14 @@ export const TEX = {
   flower_field: 'flower_field',
   mushroom: 'mushroom',
   pumpkin: 'pumpkin',
+  dog: 'dog',
+  weapon_pickaxe: 'weapon_pickaxe',
+  weapon_sword: 'weapon_sword',
+  weapon_bow: 'weapon_bow',
+  weapon_pistol: 'weapon_pistol',
+  rain_drop: 'rain_drop',
+  raindrop: 'raindrop',
+  trophy: 'trophy',
 } as const;
 
 export function generateAllTextures(scene: Phaser.Scene): void {
@@ -422,6 +430,86 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     // leaf
     g.fillStyle(0x5bbd5b, 1); g.fillRect(16, 5, 4, 2);
     outline(g, 4, 8, 20, 14, 0x1a1a1a);
+  });
+
+  // Companion dog — small brown pup with floppy ears and wagging tail
+  make(scene, TEX.dog, 22, 16, (g) => {
+    // body
+    g.fillStyle(0xb07a3c, 1); g.fillRect(4, 6, 14, 7);
+    // chest + belly highlight
+    g.fillStyle(0xc89560, 1); g.fillRect(5, 8, 12, 2);
+    // head
+    g.fillStyle(0xb07a3c, 1); g.fillRect(14, 3, 7, 7);
+    // snout
+    g.fillStyle(0xa0682b, 1); g.fillRect(18, 7, 4, 3);
+    // nose
+    g.fillStyle(0x1a1a1a, 1); g.fillRect(20, 7, 2, 1);
+    // eye
+    g.fillStyle(0x1a1a1a, 1); g.fillRect(17, 5, 1, 1);
+    // ear
+    g.fillStyle(0x8a5a28, 1); g.fillRect(14, 2, 3, 4);
+    // tail up/wagging
+    g.fillStyle(0xb07a3c, 1); g.fillRect(2, 4, 3, 4);
+    g.fillRect(0, 3, 3, 2);
+    // legs
+    g.fillStyle(0x8a5a28, 1); g.fillRect(5, 13, 2, 3); g.fillRect(9, 13, 2, 3); g.fillRect(13, 13, 2, 3); g.fillRect(16, 13, 2, 3);
+    // collar
+    g.fillStyle(0xcc3333, 1); g.fillRect(13, 7, 2, 2);
+    g.fillStyle(0xffd700, 1); g.fillRect(13, 8, 1, 1);
+    outline(g, 4, 6, 14, 7, 0x1a1a1a);
+    outline(g, 14, 3, 7, 7, 0x1a1a1a);
+  });
+
+  // Weapons shown in the player's hand
+  make(scene, TEX.weapon_pickaxe, 12, 12, (g) => {
+    g.fillStyle(0x5a3a1b, 1); g.fillRect(2, 6, 7, 1); // handle
+    g.fillStyle(0x8a8a8a, 1); g.fillRect(0, 4, 3, 5); // head
+    g.fillStyle(0xbababa, 1); g.fillRect(0, 4, 3, 1);
+    g.fillStyle(0x5a5a5a, 1); g.fillRect(0, 7, 3, 2);
+  });
+
+  make(scene, TEX.weapon_sword, 14, 14, (g) => {
+    g.fillStyle(0x5a3a1b, 1); g.fillRect(1, 9, 3, 3); // grip
+    g.fillStyle(0xffd700, 1); g.fillRect(0, 8, 5, 1); // guard
+    g.fillStyle(0xd0d0d8, 1); g.fillRect(2, 0, 1, 9); g.fillRect(1, 1, 3, 7);
+    g.fillStyle(0xffffff, 1); g.fillRect(2, 1, 1, 6);
+  });
+
+  make(scene, TEX.weapon_bow, 14, 12, (g) => {
+    g.fillStyle(0x8b5a2b, 1);
+    g.fillRect(10, 1, 2, 10);
+    g.fillRect(9, 0, 2, 2); g.fillRect(9, 10, 2, 2);
+    g.fillStyle(0xe6e6e6, 1); g.fillRect(0, 5, 12, 1); // bow string + arrow
+    g.fillStyle(0xf0b070, 1); g.fillRect(2, 5, 5, 1);
+    g.fillStyle(0xdddddd, 1); g.fillRect(0, 4, 3, 3);
+  });
+
+  make(scene, TEX.weapon_pistol, 12, 8, (g) => {
+    g.fillStyle(0x333342, 1); g.fillRect(3, 1, 7, 3); // barrel
+    g.fillStyle(0x55556a, 1); g.fillRect(3, 1, 7, 1);
+    g.fillStyle(0x1a1a1a, 1); g.fillRect(2, 3, 4, 4); // grip
+    g.fillStyle(0x333333, 1); g.fillRect(2, 3, 4, 1);
+    g.fillStyle(0xffd700, 1); g.fillRect(9, 2, 1, 1); // muzzle hint
+  });
+
+  // A tall thin raindrop streak
+  make(scene, TEX.raindrop, 2, 8, (g) => {
+    g.fillStyle(0x88aaff, 1); g.fillRect(0, 0, 2, 8);
+    g.fillStyle(0xc8d8ff, 1); g.fillRect(0, 0, 1, 8);
+  });
+
+  // Trophy
+  make(scene, TEX.trophy, 20, 22, (g) => {
+    g.fillStyle(0xffd700, 1); g.fillRect(4, 2, 12, 10); // cup
+    g.fillStyle(0xfff0a0, 1); g.fillRect(5, 3, 10, 2);
+    g.fillStyle(0xaa7700, 1); g.fillRect(4, 10, 12, 2);
+    g.fillStyle(0xffd700, 1); g.fillRect(0, 4, 4, 2); g.fillRect(16, 4, 4, 2); // handles
+    g.fillRect(0, 4, 2, 6); g.fillRect(18, 4, 2, 6);
+    g.fillStyle(0xaa7700, 1); g.fillRect(7, 12, 6, 2); // stem
+    g.fillStyle(0x8b4513, 1); g.fillRect(3, 14, 14, 5); // base
+    g.fillStyle(0x5a3a1b, 1); g.fillRect(3, 17, 14, 2);
+    outline(g, 4, 2, 12, 10, 0x1a1a1a);
+    outline(g, 3, 14, 14, 5, 0x1a1a1a);
   });
 }
 

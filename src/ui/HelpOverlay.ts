@@ -40,13 +40,17 @@ export class HelpOverlay {
     const contentStartY = panelY + 56;
     const controls = [
       ['WASD / joystick', 'Move'],
-      ['Click / tap tile', 'Use selected hotbar item on that tile'],
+      ['Click / tap tile', 'Use selected hotbar item (hold to drag-build walls)'],
       ['1 – 0', 'Select hotbar slot'],
       ['Mouse wheel', 'Cycle hotbar'],
       ['E', 'Interact with shop, bench, or door'],
-      ['Space', 'Attack (desktop alt)'],
+      ['C', 'Open crafting menu anywhere'],
+      ['P', 'Drink a health potion (+40 HP)'],
       ['N', 'Skip to night (day only)'],
       ['H or ?', 'Toggle this help'],
+      ['Minimap', 'Bottom-right: player (white), zombies (red), shop (gold)'],
+      ['Dog', 'Rex is your companion — fights and protects you'],
+      ['🎂 Cake', 'Mine it to fully heal (hidden in the world)'],
     ];
 
     let rowY = contentStartY;

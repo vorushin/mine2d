@@ -212,6 +212,18 @@ export function generateWorld(seed: number): GeneratedWorld {
     }
   }
 
+  // Place a starter chest near spawn (not on top of spawn)
+  for (let tries = 0; tries < 40; tries++) {
+    const angle = rand() * Math.PI * 2;
+    const dist = 3 + rand() * 2;
+    const cx = Math.floor(spawn.x + Math.cos(angle) * dist);
+    const cy = Math.floor(spawn.y + Math.sin(angle) * dist);
+    if (inBounds(cx, cy) && tiles[cy][cx].type === TileType.Grass) {
+      tiles[cy][cx] = makeTile(TileType.Chest);
+      break;
+    }
+  }
+
   // Clear 3x3 around spawn to plain grass (tight circle so player always has a clear start).
   // Outer ring (5x5 radius) softens hazards only.
   for (let dy = -1; dy <= 1; dy++) {

@@ -75,6 +75,13 @@ export class Pickup {
       const dx = playerX - this.container.x;
       const dy = playerY - this.container.y;
       const d = Math.hypot(dx, dy);
+      // Magnetic attraction in a wider radius
+      if (d < 70 && d > 20) {
+        const mag = Math.max(0.01, d);
+        const pull = ((70 - d) / 50) * (180 * deltaMs / 1000);
+        this.container.x += (dx / mag) * pull;
+        this.baseY += (dy / mag) * pull;
+      }
       if (d < 20) {
         this.collected = true;
         this.scene.tweens.add({
