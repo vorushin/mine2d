@@ -33,6 +33,9 @@ export class GameScene extends Phaser.Scene {
   private nightTarget = 0;
   private nightSpawnTimerMs = 0;
   private bossSpawned = false;
+  private combo = 0;
+  private comboTimerMs = 0;
+  private lastDayCountdown = -1;
   private nightOverlay!: Phaser.GameObjects.Rectangle;
   private hintText!: Phaser.GameObjects.Text;
   private reticle!: Phaser.GameObjects.Rectangle;
@@ -510,6 +513,23 @@ export class GameScene extends Phaser.Scene {
       this.spawnBoss();
     }
 
+    // Combo countdown
+    if (this.combo > 0) {
+      this.comboTimerMs -= delta;
+      if (this.comboTimerMs <= 0) this.combo = 0;
+    }
+
+    // Night approaching countdown during day (last 10 seconds)
+    if (this.state.phase === 'day') {
+      const remaining = this.cycle.phaseDuration(this.state.phase) - this.state.phaseElapsedMs;
+      const seconds = Math.ceil(remaining / 1000);
+      if (seconds <= 10 && seconds > 0 && seconds !== this.lastDayCountdown) {
+        this.lastDayCountdown = seconds;
+        this.showHint(`Night in ${seconds}…`);
+      }
+      if (seconds > 10) this.lastDayCountdown = -1;
+    }
+
     // Early dawn: if all zombies for tonight are spawned and none alive, skip remaining night
     if (this.state.phase === 'night' && this.nightSpawned >= this.nightTarget && this.zombies.length === 0) {
       const remaining = this.cycle.phaseDuration(this.state.phase) - this.state.phaseElapsedMs;
@@ -653,6 +673,13 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(60, 0.002);
     this.state.stats.zombiesKilled += 1;
 
+    // Combo: consecutive kills within 2 seconds of each other
+    this.combo += 1;
+    this.comboTimerMs = 2000;
+    if (this.combo >= 3) {
+      this.popNumber(x, y - 44, `COMBO x${this.combo}!`, this.combo >= 10 ? '#ff66aa' : this.combo >= 5 ? '#ffd166' : '#a0ffff');
+    }
+
     const kills = this.state.stats.zombiesKilled;
     if (kills === 1) this.showHint('First blood! Keep it up');
     else if (kills === 10) this.showHint('10 down — nice!');
@@ -674,9 +701,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Drops — generous to reward kills
+    // Drops — generous to reward kills. Combo level boosts gold.
+    const comboGoldBonus = Math.min(3, Math.floor(this.combo / 5));
     const drops: { m: MaterialId; c: number }[] = [];
-    if (Math.random() < 0.75) drops.push({ m: 'gold', c: 1 });
+    if (Math.random() < 0.75) drops.push({ m: 'gold', c: 1 + comboGoldBonus });
     if (Math.random() < 0.32) drops.push({ m: 'wood', c: 1 });
     if (Math.random() < 0.16) drops.push({ m: 'stone', c: 1 });
     if (Math.random() < 0.08) drops.push({ m: 'iron', c: 1 });
