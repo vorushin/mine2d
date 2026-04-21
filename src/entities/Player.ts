@@ -14,6 +14,8 @@ export class Player {
   facing: { x: number; y: number } = { x: 0, y: 1 };
   private attackCooldownMs = 0;
   private walkPhase = 0;
+  private dashMs = 0;
+  private dashCooldownMs = 0;
 
   private shadow!: Phaser.GameObjects.Ellipse;
   private weaponSprite!: Phaser.GameObjects.Image;
@@ -47,10 +49,24 @@ export class Player {
   get x(): number { return this.sprite.x; }
   get y(): number { return this.sprite.y; }
 
+  tryDash(): boolean {
+    if (this.dashCooldownMs > 0 || this.dashMs > 0) return false;
+    this.dashMs = 400;
+    this.dashCooldownMs = 3000;
+    this.scene.tweens.add({ targets: this.sprite, scaleX: this.sprite.scaleX * 1.1, duration: 100, yoyo: true });
+    return true;
+  }
+
+  dashRemaining(): number { return this.dashMs; }
+  dashCooldownRemaining(): number { return this.dashCooldownMs; }
+
   update(deltaMs: number, moveX: number, moveY: number): void {
     if (!this.state.running) return;
+    if (this.dashMs > 0) this.dashMs -= deltaMs;
+    if (this.dashCooldownMs > 0) this.dashCooldownMs -= deltaMs;
+    const speedMult = this.dashMs > 0 ? 2.2 : 1;
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-    body.setVelocity(moveX * PLAYER_SPEED, moveY * PLAYER_SPEED);
+    body.setVelocity(moveX * PLAYER_SPEED * speedMult, moveY * PLAYER_SPEED * speedMult);
 
     // Track facing from movement intent
     const isMoving = Math.abs(moveX) > 0.1 || Math.abs(moveY) > 0.1;

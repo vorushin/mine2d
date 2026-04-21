@@ -15,6 +15,8 @@ export class Dog {
   hp = 60;
   readonly maxHp = 60;
   alive = true;
+  kills = 0;
+  level = 1;
   private scene: Phaser.Scene;
   private world: World;
   private attackCooldownMs = 0;
@@ -29,6 +31,61 @@ export class Dog {
     this.sprite = scene.add.image(x, y, TEX.dog);
     this.sprite.setScale(1.1);
     this.sprite.setDepth(10);
+    this.sprite.setInteractive({ useHandCursor: true });
+    this.sprite.on('pointerdown', () => this.onPet());
+  }
+
+  get biteDamage(): number {
+    return 12 + (this.level - 1) * 4;
+  }
+
+  /** Called when Rex lands a killing blow. Scales up his power. */
+  recordKill(): void {
+    this.kills += 1;
+    const newLevel = 1 + Math.floor(this.kills / 4);
+    if (newLevel > this.level) {
+      this.level = newLevel;
+      this.showLevelPopup();
+    }
+  }
+
+  private showLevelPopup(): void {
+    const t = this.scene.add.text(this.sprite.x, this.sprite.y - 24, `Rex Lv ${this.level}!`, {
+      fontFamily: 'system-ui', fontSize: '12px', color: '#ffd166', fontStyle: 'bold',
+      stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(30);
+    this.scene.tweens.add({
+      targets: t, y: t.y - 18, alpha: 0, duration: 900, onComplete: () => t.destroy(),
+    });
+    // Sparkle
+    this.scene.tweens.add({
+      targets: this.sprite, scaleX: this.sprite.scaleX * 1.3, duration: 160, yoyo: true,
+    });
+  }
+
+  private onPet(): void {
+    // Little heart burst + joyful yip
+    const colors = [0xff69b4, 0xff4d88, 0xffc0cb];
+    for (let i = 0; i < 6; i++) {
+      const dx = (Math.random() - 0.5) * 20;
+      const h = this.scene.add.text(this.sprite.x + dx, this.sprite.y - 8, '♥', {
+        fontFamily: 'system-ui', fontSize: '14px', color: '#' + colors[i % colors.length].toString(16).padStart(6, '0'),
+      }).setOrigin(0.5).setDepth(30);
+      this.scene.tweens.add({
+        targets: h,
+        y: h.y - 28 - Math.random() * 10,
+        alpha: 0,
+        duration: 700 + Math.random() * 200,
+        delay: i * 40,
+        onComplete: () => h.destroy(),
+      });
+    }
+    // Happy wiggle
+    this.scene.tweens.add({
+      targets: this.sprite, angle: 15, yoyo: true, repeat: 2, duration: 80,
+      onComplete: () => this.sprite.setAngle(0),
+    });
+    this.scene.events.emit('dog_pet', this.sprite.x, this.sprite.y);
   }
 
   update(deltaMs: number, player: Player, zombies: Zombie[]): void {
@@ -51,10 +108,15 @@ export class Dog {
       ty = target.sprite.y;
       // Bite if close
       if (tdist < 24 && this.attackCooldownMs <= 0) {
-        target.takeDamage(12);
+        const dmg = this.biteDamage;
+        const killed = target.takeDamage(dmg);
         this.attackCooldownMs = 650;
-        this.scene.events.emit('dog_bite', target.sprite.x, target.sprite.y);
+        this.scene.events.emit('dog_bite', target.sprite.x, target.sprite.y, dmg);
         this.scene.tweens.add({ targets: this.sprite, scaleX: this.sprite.scaleX * 1.2, duration: 70, yoyo: true });
+        if (killed) {
+          this.recordKill();
+          this.scene.events.emit('dog_killed_zombie', target.sprite.x, target.sprite.y, target.variant);
+        }
       }
     } else {
       // Stay near player if no target

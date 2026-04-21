@@ -47,6 +47,9 @@ export const TEX = {
   rain_drop: 'rain_drop',
   raindrop: 'raindrop',
   trophy: 'trophy',
+  chicken: 'chicken',
+  food: 'food',
+  star: 'star',
 } as const;
 
 export function generateAllTextures(scene: Phaser.Scene): void {
@@ -496,6 +499,47 @@ export function generateAllTextures(scene: Phaser.Scene): void {
   make(scene, TEX.raindrop, 2, 8, (g) => {
     g.fillStyle(0x88aaff, 1); g.fillRect(0, 0, 2, 8);
     g.fillStyle(0xc8d8ff, 1); g.fillRect(0, 0, 1, 8);
+  });
+
+  // Chicken — cute white fluff with orange beak and red comb
+  make(scene, TEX.chicken, 16, 14, (g) => {
+    // body
+    g.fillStyle(0xffffff, 1); g.fillRect(3, 5, 10, 7);
+    g.fillStyle(0xe0e0e0, 1); g.fillRect(3, 10, 10, 2);
+    // head
+    g.fillStyle(0xffffff, 1); g.fillRect(10, 2, 5, 5);
+    // comb (red on head)
+    g.fillStyle(0xcc3333, 1); g.fillRect(11, 0, 3, 2);
+    g.fillRect(10, 1, 1, 1); g.fillRect(13, 1, 1, 1);
+    // eye
+    g.fillStyle(0x1a1a1a, 1); g.fillRect(12, 3, 1, 1);
+    // beak
+    g.fillStyle(0xffaa00, 1); g.fillRect(14, 4, 2, 1);
+    // legs
+    g.fillStyle(0xffaa00, 1); g.fillRect(5, 12, 1, 2); g.fillRect(9, 12, 1, 2);
+    // tail
+    g.fillStyle(0xf0f0f0, 1); g.fillRect(1, 4, 3, 4);
+    g.fillStyle(0xd0d0d0, 1); g.fillRect(0, 5, 2, 2);
+    outline(g, 3, 5, 10, 7, 0x1a1a1a);
+    outline(g, 10, 2, 5, 5, 0x1a1a1a);
+  });
+
+  // Food (drumstick-like)
+  make(scene, TEX.food, 14, 14, (g) => {
+    g.fillStyle(0xd58a4a, 1); g.fillRect(4, 4, 8, 6);
+    g.fillStyle(0xe6a870, 1); g.fillRect(4, 4, 8, 2);
+    g.fillStyle(0xfefefe, 1); g.fillRect(2, 2, 4, 4); // bone
+    g.fillStyle(0xdddddd, 1); g.fillRect(2, 6, 4, 2);
+    outline(g, 4, 4, 8, 6, 0x1a1a1a);
+    outline(g, 2, 2, 4, 4, 0x1a1a1a);
+  });
+
+  // Star (for night background)
+  make(scene, TEX.star, 6, 6, (g) => {
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(2, 0, 2, 6); g.fillRect(0, 2, 6, 2);
+    g.fillStyle(0xffffcc, 1);
+    g.fillRect(2, 2, 2, 2);
   });
 
   // Trophy

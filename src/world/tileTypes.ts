@@ -27,7 +27,7 @@ export const enum TileType {
   Pumpkin,
 }
 
-export type MaterialId = 'wood' | 'stone' | 'iron' | 'gold' | 'arrow' | 'bullet' | 'lava' | 'potion';
+export type MaterialId = 'wood' | 'stone' | 'iron' | 'gold' | 'arrow' | 'bullet' | 'lava' | 'potion' | 'food';
 
 export type ToolTier = 0 | 1 | 2 | 3;
 

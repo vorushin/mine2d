@@ -7,6 +7,7 @@ import { Projectile, ProjectileSpawn } from '../entities/Projectile';
 import { TurretInstance, makeTurretBarrel, tickTurrets } from '../entities/Turret';
 import { Pickup } from '../entities/Pickup';
 import { Dog } from '../entities/Dog';
+import { Chicken } from '../entities/Chicken';
 import { InputSystem } from '../systems/Input';
 import { DayNightCycle } from '../systems/DayNightCycle';
 import { SaveStore } from '../systems/SaveStore';
@@ -27,6 +28,7 @@ export class GameScene extends Phaser.Scene {
   turrets: TurretInstance[] = [];
   pickups: Pickup[] = [];
   dog?: Dog;
+  chickens: Chicken[] = [];
   input2!: InputSystem;
   readonly events2 = new Phaser.Events.EventEmitter();
   private nightSpawned = 0;
@@ -42,6 +44,7 @@ export class GameScene extends Phaser.Scene {
   private interactPrompt!: Phaser.GameObjects.Text;
   private rainEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
   private rainActive = false;
+  private stars: Phaser.GameObjects.Image[] = [];
 
   constructor() {
     super('Game');
@@ -67,6 +70,7 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, this.state, this.world);
     this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
+    this.spawnChickens();
     this.cameras.main.startFollow(this.player.sprite, true, 0.12, 0.12);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
     this.cameras.main.setZoom(1.4);
@@ -97,6 +101,21 @@ export class GameScene extends Phaser.Scene {
       else {
         this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
         this.showHint('🐶 Rex is back!');
+      }
+      // Respawn chickens each dawn (keep world lively)
+      const target = 6;
+      while (this.chickens.length < target) {
+        let placed = false;
+        for (let tries = 0; tries < 20 && !placed; tries++) {
+          const tx = 4 + Math.floor(Math.random() * (WORLD_WIDTH - 8));
+          const ty = 4 + Math.floor(Math.random() * (WORLD_HEIGHT - 8));
+          if (this.world.isWalkable(tx, ty)) {
+            const wc = this.world.tileToWorldCenter(tx, ty);
+            this.chickens.push(new Chicken(this, this.world, wc.x, wc.y));
+            placed = true;
+          }
+        }
+        if (!placed) break;
       }
       // Stop rain at dawn
       this.stopRain();
@@ -147,6 +166,27 @@ export class GameScene extends Phaser.Scene {
       this.effects.burst(this.player.x, this.player.y, 0xff66aa, 10, 90, 400, 1);
     });
 
+    // Shift — dash
+    this.input.keyboard?.on('keydown-SHIFT', () => {
+      if (this.player.tryDash()) {
+        sounds.click();
+        this.effects.burst(this.player.x, this.player.y, 0xffffff, 8, 60, 260, 0.8);
+      }
+    });
+
+    // F — eat food
+    this.input.keyboard?.on('keydown-F', () => {
+      if (!hasItem(this.state.inventory, 'food', 1)) {
+        this.showHint('No food — kill a chicken');
+        return;
+      }
+      removeItem(this.state.inventory, 'food', 1);
+      const heal = 20;
+      this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + heal);
+      this.popNumber(this.player.x, this.player.y - 20, `+${heal} HP yum`, '#ffd166');
+      sounds.pickup();
+    });
+
     this.input.on('wheel', (_p: any, _obj: any, _dx: number, dy: number) => {
       const dir = dy > 0 ? 1 : -1;
       this.state.hotbarSlot = (this.state.hotbarSlot + dir + HOTBAR.length) % HOTBAR.length;
@@ -160,9 +200,19 @@ export class GameScene extends Phaser.Scene {
       this.effects.bloodBurst(x, y, 0x8a1a1a);
       this.dog?.reactToPlayerHit();
     });
-    this.events.on('dog_bite', (x: number, y: number) => {
+    this.events.on('dog_bite', (x: number, y: number, dmg: number) => {
       this.effects.bloodBurst(x, y, 0x8a1a1a);
       sounds.zombieHit();
+      if (dmg !== undefined) this.popNumber(x, y - 12, `-${dmg}`, '#ffccaa');
+    });
+    this.events.on('dog_killed_zombie', (x: number, y: number, variant?: string) => {
+      this.onZombieKilled(x, y, variant);
+    });
+    this.events.on('dog_pet', () => {
+      sounds.pickup();
+      // Temporary small HP regen and a small hint
+      this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + 3);
+      this.popNumber(this.player.x, this.player.y - 22, '+3 ♥', '#ff88aa');
     });
     this.events.on('zombie_hit_wall', (x: number, y: number, tileType: TileType) => {
       sounds.wallHit();
@@ -180,6 +230,8 @@ export class GameScene extends Phaser.Scene {
       .rectangle(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE, COLORS.night_overlay, 0)
       .setOrigin(0, 0);
     this.nightOverlay.setDepth(100);
+
+    this.buildStarfield();
 
     this.hintText = this.add
       .text(0, 0, '', {
@@ -421,6 +473,19 @@ export class GameScene extends Phaser.Scene {
           if (z.takeDamage(dmg)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
         }
       }
+      // Hit any nearby chickens too (for food)
+      for (const c of this.chickens) {
+        if (!c.alive) continue;
+        const d = Math.hypot(c.x - worldX, c.y - worldY);
+        if (d < 20 && this.player.tileDistance(this.world.worldToTile(c.x, c.y).x, this.world.worldToTile(c.x, c.y).y) <= 1.5) {
+          hitSomething = true;
+          this.effects.burst(c.x, c.y, 0xffffff, 6, 60, 300, 0.6);
+          if (c.takeDamage(dmg)) {
+            this.pickups.push(new Pickup(this, c.x, c.y, 'food', 1));
+            sounds.zombieHit();
+          }
+        }
+      }
       const t = this.world.getTileAt(tp.x, tp.y);
       if (t && isBreakable(t.type) && TILE_SPECS[t.type].pickaxeTier === 0) {
         this.world.damageTile(tp.x, tp.y, Math.ceil(dmg / 2));
@@ -476,6 +541,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   private regenAccumMs = 0;
+  private torchAccumMs = 0;
+
+  private applyTorchAuraDamage(): void {
+    const radius = 80; // px
+    const damage = 2;
+    const torches: { x: number; y: number }[] = [];
+    this.world.forEachTileOfType(TileType.Torch, (tx, ty) => {
+      const wc = this.world.tileToWorldCenter(tx, ty);
+      torches.push(wc);
+    });
+    this.world.forEachTileOfType(TileType.Campfire, (tx, ty) => {
+      const wc = this.world.tileToWorldCenter(tx, ty);
+      torches.push(wc);
+    });
+    if (torches.length === 0) return;
+    for (const z of this.zombies) {
+      if (!z.alive) continue;
+      for (const t of torches) {
+        const d = Math.hypot(z.sprite.x - t.x, z.sprite.y - t.y);
+        if (d < radius) {
+          if (z.takeDamage(damage)) {
+            this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
+          }
+          this.effects.burst(z.sprite.x, z.sprite.y, 0xffa040, 2, 40, 250, 0.6);
+          break;
+        }
+      }
+    }
+  }
 
   update(_time: number, delta: number): void {
     if (!this.state.running) return;
@@ -484,13 +578,25 @@ export class GameScene extends Phaser.Scene {
 
     this.cycle.tick(delta);
 
-    // Slow HP regen during day (not dusk/night/dawn)
+    // Slow HP regen during day (faster near campfire)
     if (this.state.phase === 'day' && this.state.playerHp < this.state.playerMaxHp) {
       this.regenAccumMs += delta;
-      if (this.regenAccumMs >= 2500) {
+      const nearCampfire = this.player.adjacentToTileType(TileType.Campfire);
+      const interval = nearCampfire ? 900 : 2500;
+      if (this.regenAccumMs >= interval) {
         this.regenAccumMs = 0;
-        this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + 2);
-        this.popNumber(this.player.x, this.player.y - 18, '+2', '#9effa0');
+        const amount = nearCampfire ? 4 : 2;
+        this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + amount);
+        this.popNumber(this.player.x, this.player.y - 18, `+${amount}`, '#9effa0');
+      }
+    }
+
+    // Torches burn nearby zombies at night
+    if (this.state.phase === 'night' || this.state.phase === 'dusk') {
+      this.torchAccumMs -= delta;
+      if (this.torchAccumMs <= 0) {
+        this.torchAccumMs = 600;
+        this.applyTorchAuraDamage();
       }
     }
 
@@ -554,6 +660,10 @@ export class GameScene extends Phaser.Scene {
       this.dog.update(delta, this.player, this.zombies);
     }
 
+    // Chickens wander around
+    for (const c of this.chickens) c.update(delta, this.player.x, this.player.y);
+    this.chickens = this.chickens.filter((c) => c.alive);
+
     // Turrets
     const spawns = tickTurrets(this.turrets, this.zombies, this.world, delta);
     for (const s of spawns) {
@@ -611,6 +721,12 @@ export class GameScene extends Phaser.Scene {
     }
     this.nightOverlay.setFillStyle(COLORS.night_overlay, alpha);
 
+    // Stars visible roughly proportional to overlay darkness
+    const starAlpha = Math.min(1, alpha * 1.4);
+    for (const s of this.stars) {
+      if (s.alpha !== starAlpha) s.setAlpha(starAlpha * (0.7 + 0.3 * Math.sin((this.time.now + s.x) / 500)));
+    }
+
     // Interact prompt: show when near shop/bench/door
     this.updateInteractPrompt();
 
@@ -623,6 +739,20 @@ export class GameScene extends Phaser.Scene {
         this.scene.stop('UI');
         this.scene.start('GameOver', { score: this.state.score, stats: this.state.stats, state: this.state });
       });
+    }
+  }
+
+  private spawnChickens(): void {
+    for (let i = 0; i < 8; i++) {
+      for (let tries = 0; tries < 20; tries++) {
+        const tx = 4 + Math.floor(Math.random() * (WORLD_WIDTH - 8));
+        const ty = 4 + Math.floor(Math.random() * (WORLD_HEIGHT - 8));
+        if (this.world.isWalkable(tx, ty)) {
+          const wc = this.world.tileToWorldCenter(tx, ty);
+          this.chickens.push(new Chicken(this, this.world, wc.x, wc.y));
+          break;
+        }
+      }
     }
   }
 
@@ -686,11 +816,12 @@ export class GameScene extends Phaser.Scene {
     else if (kills === 25) this.showHint('Quarter-century!');
     else if (kills === 50) this.showHint('50 kills — zombie slayer');
 
-    // Boss loot — big payoff
+    // Boss loot — big payoff with fireworks
     if (variant === 'boss') {
       this.showBanner('🏆 BOSS DOWN', 'massive loot!');
       sounds.cake();
       this.effects.burst(x, y, 0xffd700, 40, 220, 1000, 2);
+      this.launchFireworks();
       const bossLoot: { m: MaterialId; c: number }[] = [
         { m: 'gold', c: 6 }, { m: 'iron', c: 4 }, { m: 'stone', c: 3 },
         { m: 'potion', c: 1 }, { m: 'bullet', c: 5 }, { m: 'lava', c: 1 },
@@ -750,6 +881,28 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private buildStarfield(): void {
+    // Create ~60 stars scattered across the world at depth 99 (below overlay)
+    // Stars are invisible during day and fade in at dusk/night.
+    for (let i = 0; i < 60; i++) {
+      const x = Math.random() * WORLD_WIDTH * TILE_SIZE;
+      const y = Math.random() * WORLD_HEIGHT * TILE_SIZE;
+      const s = this.add.image(x, y, 'star');
+      s.setDepth(99);
+      s.setAlpha(0);
+      s.setScale(0.7 + Math.random() * 0.6);
+      // Gentle twinkle tween
+      this.tweens.add({
+        targets: s,
+        scale: s.scale * 1.3,
+        duration: 800 + Math.random() * 1600,
+        yoyo: true,
+        repeat: -1,
+      });
+      this.stars.push(s);
+    }
+  }
+
   startRain(): void {
     if (this.rainActive) return;
     this.rainActive = true;
@@ -780,6 +933,21 @@ export class GameScene extends Phaser.Scene {
       this.rainEmitter?.destroy();
       this.rainEmitter = undefined;
     });
+  }
+
+  private launchFireworks(): void {
+    const colors = [0xff4d88, 0xffd166, 0x8aa0ff, 0x7fce7f, 0xff66aa, 0xffffff, 0xa0ffff];
+    const cam = this.cameras.main;
+    // Fire 6 bursts with small delays at random points in the visible camera view
+    for (let i = 0; i < 6; i++) {
+      this.time.delayedCall(i * 180, () => {
+        const x = cam.worldView.x + Math.random() * cam.worldView.width;
+        const y = cam.worldView.y + Math.random() * cam.worldView.height * 0.6;
+        const c = colors[Math.floor(Math.random() * colors.length)];
+        this.effects.burst(x, y, c, 24, 200, 900, 1.4);
+        sounds.click();
+      });
+    }
   }
 
   showBanner(title: string, subtitle: string): void {

@@ -170,6 +170,8 @@ export class UIScene extends Phaser.Scene {
       { key: 'arrow', color: 0xe6e6e6, label: 'A' },
       { key: 'bullet', color: 0xffaa00, label: 'B' },
       { key: 'lava', color: 0xff4d1a, label: 'L' },
+      { key: 'potion', color: 0xff66aa, label: 'P' },
+      { key: 'food', color: 0xd58a4a, label: 'F' },
     ];
     for (const it of items) {
       const bg = this.add.rectangle(0, 0, 56, 22, 0x1a1c22, 0.88).setStrokeStyle(1, 0x555, 0.7).setOrigin(0, 0.5);
@@ -346,7 +348,8 @@ export class UIScene extends Phaser.Scene {
     this.phaseLabel.setText(`${this.state.phase.toUpperCase()}`).setPosition(this.scale.width / 2, 20);
     const kills = this.state.stats?.zombiesKilled ?? 0;
     const extra = this.state.phase === 'night' ? `   •   zombies ${this.gameScene.zombies.filter((z) => z.alive).length}` : '';
-    this.nightLabel.setText(`Night ${this.state.nightNumber}   •   Score ${this.state.score}   •   kills ${kills}${extra}`);
+    const rex = this.gameScene.dog?.alive ? `   •   🐶 Lv ${this.gameScene.dog.level}` : '';
+    this.nightLabel.setText(`Night ${this.state.nightNumber}   •   Score ${this.state.score}   •   kills ${kills}${rex}${extra}`);
 
     if (this.skipNightButton) this.skipNightButton.setVisible(this.state.phase === 'day');
   }

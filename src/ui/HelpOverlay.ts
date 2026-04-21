@@ -46,10 +46,16 @@ export class HelpOverlay {
       ['E', 'Interact with shop, bench, or door'],
       ['C', 'Open crafting menu anywhere'],
       ['P', 'Drink a health potion (+40 HP)'],
+      ['F', 'Eat food to heal (+20 HP)'],
+      ['Shift', 'Dash — 2× speed for a short burst'],
+      ['Click Rex', 'Pet the dog — he loves it'],
       ['N', 'Skip to night (day only)'],
       ['H or ?', 'Toggle this help'],
       ['Minimap', 'Bottom-right: player (white), zombies (red), shop (gold)'],
-      ['Dog', 'Rex is your companion — fights and protects you'],
+      ['Dog', 'Rex is your companion — he levels up with kills!'],
+      ['Chickens', 'Hit one with sword → food drop (F to eat)'],
+      ['Torch', 'Damages zombies at night in a small radius'],
+      ['Campfire', 'Heal faster when standing next to it'],
       ['🎂 Cake', 'Mine it to fully heal (hidden in the world)'],
     ];
 
