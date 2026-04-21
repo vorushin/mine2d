@@ -102,6 +102,21 @@ export class GameScene extends Phaser.Scene {
         this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
         this.showHint('🐶 Rex is back!');
       }
+      // Replant a few trees each dawn (nature recovers)
+      let planted = 0;
+      for (let tries = 0; tries < 40 && planted < 3; tries++) {
+        const tx = 4 + Math.floor(Math.random() * (WORLD_WIDTH - 8));
+        const ty = 4 + Math.floor(Math.random() * (WORLD_HEIGHT - 8));
+        const tile = this.world.getTileAt(tx, ty);
+        if (tile && tile.type === TileType.Grass) {
+          // Don't plant right next to the player
+          if (this.player.tileDistance(tx, ty) > 4) {
+            this.world.placeTile(tx, ty, TileType.Tree);
+            planted++;
+          }
+        }
+      }
+
       // Respawn chickens each dawn (keep world lively)
       const target = 6;
       while (this.chickens.length < target) {

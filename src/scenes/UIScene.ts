@@ -36,6 +36,9 @@ export class UIScene extends Phaser.Scene {
   private skipNightButton?: Phaser.GameObjects.Rectangle;
   private shopCompass?: Phaser.GameObjects.Container;
   private minimap?: Minimap;
+  private bossHpBarBg?: Phaser.GameObjects.Rectangle;
+  private bossHpBarFg?: Phaser.GameObjects.Rectangle;
+  private bossHpLabel?: Phaser.GameObjects.Text;
 
   constructor() {
     super('UI');
@@ -52,6 +55,7 @@ export class UIScene extends Phaser.Scene {
     this.buildHelpButton();
     this.buildShopCompass();
     this.minimap = new Minimap(this, this.gameScene);
+    this.buildBossHpBar();
 
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (isTouch) {
@@ -119,6 +123,38 @@ export class UIScene extends Phaser.Scene {
     bg.on('pointerdown', () => this.toggleHelp());
     this.input.keyboard?.on('keydown-H', () => this.toggleHelp());
     this.input.keyboard?.on('keydown-SLASH', () => this.toggleHelp());
+  }
+
+  private buildBossHpBar(): void {
+    this.bossHpBarBg = this.add.rectangle(0, 0, 400, 14, 0x000000, 0.75).setStrokeStyle(2, 0xff2020, 0.85).setScrollFactor(0).setDepth(600);
+    this.bossHpBarFg = this.add.rectangle(0, 0, 396, 10, 0xc22020, 1).setScrollFactor(0).setDepth(601);
+    this.bossHpLabel = this.add.text(0, 0, '⚠ BOSS', {
+      fontFamily: 'system-ui', fontSize: '14px', color: '#ffcccc', fontStyle: 'bold',
+      stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(602);
+    this.bossHpBarBg.setVisible(false);
+    this.bossHpBarFg.setVisible(false);
+    this.bossHpLabel.setVisible(false);
+  }
+
+  private renderBossHpBar(): void {
+    const boss = this.gameScene.zombies.find((z) => z.alive && z.variant === 'boss');
+    if (!boss || !this.bossHpBarBg || !this.bossHpBarFg || !this.bossHpLabel) {
+      this.bossHpBarBg?.setVisible(false);
+      this.bossHpBarFg?.setVisible(false);
+      this.bossHpLabel?.setVisible(false);
+      return;
+    }
+    const w = this.scale.width;
+    const cx = w / 2;
+    const cy = 90;
+    this.bossHpBarBg.setPosition(cx, cy);
+    this.bossHpBarFg.setPosition(cx - 198 + (396 * Math.max(0, boss.hp) / boss.maxHp) / 2, cy);
+    this.bossHpBarFg.width = 396 * Math.max(0, boss.hp) / boss.maxHp;
+    this.bossHpLabel.setPosition(cx, cy - 16);
+    this.bossHpBarBg.setVisible(true);
+    this.bossHpBarFg.setVisible(true);
+    this.bossHpLabel.setVisible(true);
   }
 
   private buildShopCompass(): void {
@@ -275,6 +311,7 @@ export class UIScene extends Phaser.Scene {
     this.renderHotbar();
     this.renderInventory();
     this.renderShopCompass();
+    this.renderBossHpBar();
     this.minimap?.update();
   }
 
