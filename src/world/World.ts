@@ -33,6 +33,7 @@ const TEXTURE_FOR: Partial<Record<TileType, string>> = {
   [TileType.Cake]: TEX.cake,
   [TileType.Mushroom]: TEX.mushroom,
   [TileType.Pumpkin]: TEX.pumpkin,
+  [TileType.Volcano]: TEX.volcano,
 };
 
 export class World {
@@ -62,6 +63,7 @@ export class World {
           t.type === TileType.Water ? TEX.water :
           t.type === TileType.Sand ? TEX.sand :
           t.type === TileType.FlowerField ? TEX.flower_field :
+          t.type === TileType.Crater ? TEX.crater :
           TEX.grass_tuft;
         const ground = this.scene.add.image(
           x * TILE_SIZE + TILE_SIZE / 2,
@@ -89,7 +91,8 @@ export class World {
       type !== TileType.Dirt &&
       type !== TileType.Water &&
       type !== TileType.Sand &&
-      type !== TileType.FlowerField
+      type !== TileType.FlowerField &&
+      type !== TileType.Crater
     );
   }
 
@@ -214,6 +217,33 @@ export class World {
     } else if (t.type === TileType.DeadTree) {
       img.setOrigin(0.5, 1);
       img.y = y * TILE_SIZE + TILE_SIZE;
+    } else if (t.type === TileType.Volcano) {
+      img.setOrigin(0.5, 1);
+      img.y = y * TILE_SIZE + TILE_SIZE;
+      // Pulsing red glow
+      const glow = this.scene.add.circle(cx, cy, TILE_SIZE * 1.8, 0xff4d1a, 0.2);
+      glow.setDepth(1);
+      img.setData('glow', glow);
+      this.scene.tweens.add({
+        targets: glow,
+        fillAlpha: 0.35,
+        scale: 1.2,
+        yoyo: true,
+        repeat: -1,
+        duration: 600 + Math.random() * 200,
+      });
+      // Smoke puffs
+      const smoke = this.scene.add.particles(cx, y * TILE_SIZE + 4, 'particle', {
+        speed: { min: -20, max: 20 },
+        angle: { min: 260, max: 280 },
+        lifespan: 900,
+        alpha: { start: 0.5, end: 0 },
+        scale: { start: 1.5, end: 4 },
+        tint: [0x555555, 0x888888],
+        frequency: 200,
+      });
+      smoke.setDepth(6);
+      img.setData('smoke', smoke);
     }
 
     this.tileObjects.set(this.key(x, y), img);
@@ -366,6 +396,31 @@ export class World {
 
   tileToWorldCenter(x: number, y: number): { x: number; y: number } {
     return { x: x * TILE_SIZE + TILE_SIZE / 2, y: y * TILE_SIZE + TILE_SIZE / 2 };
+  }
+
+  /** Redraw a single tile's ground image (e.g., after converting it to crater/lava). */
+  forceRedrawGround(x: number, y: number): void {
+    const t = this.getTileAt(x, y);
+    if (!t) return;
+    const texKey =
+      t.type === TileType.Dirt ? TEX.dirt :
+      t.type === TileType.Water ? TEX.water :
+      t.type === TileType.Sand ? TEX.sand :
+      t.type === TileType.FlowerField ? TEX.flower_field :
+      t.type === TileType.Crater ? TEX.crater :
+      t.type === TileType.Lava ? TEX.lava :
+      TEX.grass_tuft;
+    const ground = this.scene.add.image(
+      x * TILE_SIZE + TILE_SIZE / 2,
+      y * TILE_SIZE + TILE_SIZE / 2,
+      texKey,
+    );
+    ground.setDepth(0.4);
+  }
+
+  /** Spawn the object layer for a tile from outside (used by world events). */
+  forceSpawnObject(x: number, y: number): void {
+    this.spawnObject(x, y);
   }
 
   forEachTileOfType(type: TileType, visitor: (x: number, y: number) => void): void {

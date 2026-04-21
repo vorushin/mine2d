@@ -13,6 +13,7 @@ import { DayNightCycle } from '../systems/DayNightCycle';
 import { SaveStore } from '../systems/SaveStore';
 import { sounds } from '../systems/Sound';
 import { Effects } from '../gfx/Effects';
+import { WorldEvents } from '../systems/WorldEvents';
 import { GameState, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
 import { HOTBAR, hotbarAvailable } from '../ui/hotbarDef';
@@ -23,6 +24,7 @@ export class GameScene extends Phaser.Scene {
   player!: Player;
   cycle!: DayNightCycle;
   effects!: Effects;
+  worldEvents!: WorldEvents;
   zombies: Zombie[] = [];
   projectiles: Projectile[] = [];
   turrets: TurretInstance[] = [];
@@ -38,7 +40,10 @@ export class GameScene extends Phaser.Scene {
   private combo = 0;
   private comboTimerMs = 0;
   private lastDayCountdown = -1;
+  private bloodMoon = false;
+  private bloodOverlay?: Phaser.GameObjects.Rectangle;
   private nightOverlay!: Phaser.GameObjects.Rectangle;
+  private warmOverlay!: Phaser.GameObjects.Rectangle;
   private hintText!: Phaser.GameObjects.Text;
   private reticle!: Phaser.GameObjects.Rectangle;
   private interactPrompt!: Phaser.GameObjects.Text;
@@ -67,6 +72,14 @@ export class GameScene extends Phaser.Scene {
     this.drawDecor(seed);
 
     this.effects = new Effects(this);
+    this.worldEvents = new WorldEvents({
+      scene: this,
+      world: this.world,
+      effects: this.effects,
+      onPickup: (p) => this.pickups.push(p),
+      playerTilePos: () => this.world.worldToTile(this.player.x, this.player.y),
+      nightNumber: () => this.state.nightNumber,
+    });
 
     this.player = new Player(this, this.state, this.world);
     this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
@@ -85,12 +98,17 @@ export class GameScene extends Phaser.Scene {
       this.bossSpawned = false;
       sounds.nightStart();
       const isBossNight = this.state.nightNumber % 5 === 0;
-      const sub = isBossNight ? `${target} zombies + BOSS incoming` : `${target} zombies incoming`;
+      this.bloodMoon = isBossNight;
+      const sub = isBossNight
+        ? `🩸 BLOOD MOON  ·  ${target} zombies + BOSS`
+        : `${target} zombies incoming`;
       this.showBanner(`NIGHT ${this.state.nightNumber}`, sub);
+      if (isBossNight) this.cameras.main.shake(400, 0.006);
     });
     this.cycle.events.on('dawn', () => {
       for (const z of this.zombies) z.die();
       this.zombies = [];
+      this.bloodMoon = false;
       sounds.dawn();
       // +max HP every time you survive
       this.state.playerMaxHp += 15;
@@ -138,7 +156,17 @@ export class GameScene extends Phaser.Scene {
       if (Math.random() < 0.3) this.startRain();
     });
     this.cycle.events.on('phase_changed', (phase: GameState['phase']) => {
-      if (phase === 'day') this.showHint('Day — mine, build, craft');
+      if (phase === 'day') {
+        this.showHint('Day — mine, build, craft');
+        this.worldEvents.onDayStart();
+      }
+    });
+
+    this.events.on('volcano_spawned', (tx: number, ty: number) => {
+      this.showBanner('🌋 VOLCANO', 'a volcano erupted nearby!');
+      sounds.bossRoar();
+      const wc = this.world.tileToWorldCenter(tx, ty);
+      this.effects.burst(wc.x, wc.y, 0xff4d1a, 30, 180, 900, 1.8);
     });
 
     // Click-to-interact
@@ -245,6 +273,18 @@ export class GameScene extends Phaser.Scene {
       .rectangle(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE, COLORS.night_overlay, 0)
       .setOrigin(0, 0);
     this.nightOverlay.setDepth(100);
+
+    this.warmOverlay = this.add
+      .rectangle(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE, 0xff7a33, 0)
+      .setOrigin(0, 0);
+    this.warmOverlay.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.warmOverlay.setDepth(99);
+
+    this.bloodOverlay = this.add
+      .rectangle(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE, 0xaa0000, 0)
+      .setOrigin(0, 0);
+    this.bloodOverlay.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.bloodOverlay.setDepth(101);
 
     this.buildStarfield();
 
@@ -592,6 +632,7 @@ export class GameScene extends Phaser.Scene {
     this.player.update(delta, mv.x, mv.y);
 
     this.cycle.tick(delta);
+    this.worldEvents.update(delta);
 
     // Slow HP regen during day (faster near campfire)
     if (this.state.phase === 'day' && this.state.playerHp < this.state.playerMaxHp) {
@@ -736,6 +777,18 @@ export class GameScene extends Phaser.Scene {
     }
     this.nightOverlay.setFillStyle(COLORS.night_overlay, alpha);
 
+    // Warm sunset/sunrise overlay: peaks during dusk & dawn, fades to 0 at pure day/night
+    let warm = 0;
+    if (this.state.phase === 'dusk') warm = 0.25 * (1 - Math.abs(0.5 - this.cycle.phaseProgress()) * 2);
+    else if (this.state.phase === 'dawn') warm = 0.25 * (1 - Math.abs(0.5 - this.cycle.phaseProgress()) * 2);
+    this.warmOverlay.setFillStyle(0xff7a33, warm);
+
+    // Blood moon tint — only during night phase of boss nights
+    if (this.bloodOverlay) {
+      const bloodAlpha = (this.bloodMoon && (this.state.phase === 'night' || this.state.phase === 'dusk')) ? 0.35 : 0;
+      this.bloodOverlay.setFillStyle(0xaa0000, bloodAlpha);
+    }
+
     // Stars visible roughly proportional to overlay darkness
     const starAlpha = Math.min(1, alpha * 1.4);
     for (const s of this.stars) {
@@ -847,14 +900,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Drops — generous to reward kills. Combo level boosts gold.
+    // Drops — generous to reward kills. Combo boost + blood moon boost.
     const comboGoldBonus = Math.min(3, Math.floor(this.combo / 5));
+    const moonMult = this.bloodMoon ? 1.5 : 1;
     const drops: { m: MaterialId; c: number }[] = [];
-    if (Math.random() < 0.75) drops.push({ m: 'gold', c: 1 + comboGoldBonus });
-    if (Math.random() < 0.32) drops.push({ m: 'wood', c: 1 });
-    if (Math.random() < 0.16) drops.push({ m: 'stone', c: 1 });
-    if (Math.random() < 0.08) drops.push({ m: 'iron', c: 1 });
-    if (Math.random() < 0.02) drops.push({ m: 'potion', c: 1 });
+    if (Math.random() < 0.75 * moonMult) drops.push({ m: 'gold', c: 1 + comboGoldBonus });
+    if (Math.random() < 0.32 * moonMult) drops.push({ m: 'wood', c: 1 });
+    if (Math.random() < 0.16 * moonMult) drops.push({ m: 'stone', c: 1 });
+    if (Math.random() < 0.08 * moonMult) drops.push({ m: 'iron', c: 1 });
+    if (Math.random() < 0.02 * moonMult) drops.push({ m: 'potion', c: 1 });
     for (const d of drops) {
       this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 10, d.m, d.c));
       if (d.m === 'gold') this.state.stats.goldEarned += d.c;

@@ -25,6 +25,8 @@ export const enum TileType {
   FlowerField,
   Mushroom,
   Pumpkin,
+  Volcano,
+  Crater,
 }
 
 export type MaterialId = 'wood' | 'stone' | 'iron' | 'gold' | 'arrow' | 'bullet' | 'lava' | 'potion' | 'food';
@@ -75,6 +77,8 @@ export const TILE_SPECS: Record<TileType, TileSpec> = {
   [TileType.FlowerField]: { walkable: true, opaque: false, baseHp: 0, pickaxeTier: 0, tintColor: C(0xffb0d8) },
   [TileType.Mushroom]: { walkable: false, opaque: true, baseHp: 2, pickaxeTier: 0, dropMaterial: 'potion', dropCount: 1, tintColor: C(0xd04040) },
   [TileType.Pumpkin]: { walkable: false, opaque: true, baseHp: 3, pickaxeTier: 0, dropMaterial: 'wood', dropCount: 1, tintColor: C(0xff8c00) },
+  [TileType.Volcano]: { walkable: false, opaque: true, baseHp: 300, pickaxeTier: 1, dropMaterial: 'gold', dropCount: 5, tintColor: C(0xb01a00) },
+  [TileType.Crater]: { walkable: true, opaque: false, baseHp: 0, pickaxeTier: 0, tintColor: C(0x3a2410) },
 };
 
 export function isPlaceableGround(type: TileType): boolean {

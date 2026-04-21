@@ -50,6 +50,9 @@ export const TEX = {
   chicken: 'chicken',
   food: 'food',
   star: 'star',
+  volcano: 'volcano',
+  crater: 'crater',
+  meteor: 'meteor',
 } as const;
 
 export function generateAllTextures(scene: Phaser.Scene): void {
@@ -532,6 +535,61 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xdddddd, 1); g.fillRect(2, 6, 4, 2);
     outline(g, 4, 4, 8, 6, 0x1a1a1a);
     outline(g, 2, 2, 4, 4, 0x1a1a1a);
+  });
+
+  // Volcano — big pile of blackened rock with molten glow
+  make(scene, TEX.volcano, 42, 38, (g) => {
+    // base
+    g.fillStyle(0x2a1a0a, 1);
+    g.fillRect(0, 20, 42, 18);
+    g.fillStyle(0x3a2414, 1);
+    g.fillRect(2, 16, 38, 4);
+    g.fillStyle(0x4a3020, 1);
+    g.fillRect(4, 12, 34, 4);
+    g.fillStyle(0x5a3a28, 1);
+    g.fillRect(8, 8, 26, 4);
+    g.fillStyle(0x6a4a38, 1);
+    g.fillRect(12, 4, 18, 4);
+    // Crater rim
+    g.fillStyle(0x2a1a0a, 1); g.fillRect(14, 2, 14, 3);
+    // Molten lava in crater
+    g.fillStyle(0xff4d1a, 1); g.fillRect(16, 0, 10, 3);
+    g.fillStyle(0xffaa33, 1); g.fillRect(18, 0, 6, 1);
+    // Glow on sides
+    g.fillStyle(0xff6020, 1);
+    g.fillRect(8, 12, 3, 2); g.fillRect(30, 14, 4, 3);
+    g.fillRect(12, 20, 3, 2); g.fillRect(28, 22, 3, 2);
+    // Smoke puffs above (visual baked in)
+    g.fillStyle(0x555555, 0.5); g.fillRect(16, 0, 2, 2); g.fillRect(24, 0, 2, 1);
+    outline(g, 0, 20, 42, 18, 0x000000);
+  });
+
+  // Crater (charred ground where meteor landed)
+  make(scene, TEX.crater, 32, 32, (g) => {
+    g.fillStyle(0x3a2410, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x2a1a0a, 1);
+    g.fillRect(4, 4, 24, 24);
+    g.fillStyle(0x1a0a04, 1);
+    g.fillRect(8, 8, 16, 16);
+    g.fillStyle(0x4a3020, 1);
+    g.fillRect(5, 5, 3, 2); g.fillRect(24, 5, 3, 2); g.fillRect(5, 25, 3, 2); g.fillRect(24, 25, 3, 2);
+    g.fillStyle(0x2a1a0a, 1);
+    g.fillRect(10, 12, 2, 2); g.fillRect(20, 18, 2, 2);
+  });
+
+  // Meteor (the falling rock)
+  make(scene, TEX.meteor, 24, 24, (g) => {
+    // fiery head
+    g.fillStyle(0xff4d1a, 1); g.fillRect(4, 4, 16, 16);
+    g.fillStyle(0xff8030, 1); g.fillRect(5, 5, 14, 6);
+    g.fillStyle(0xffee88, 1); g.fillRect(7, 6, 10, 4);
+    // dark rock core
+    g.fillStyle(0x3a2410, 1); g.fillRect(6, 12, 12, 8);
+    g.fillStyle(0x2a1a0a, 1); g.fillRect(8, 14, 8, 4);
+    // fire trail
+    g.fillStyle(0xffaa33, 1); g.fillRect(4, 20, 16, 3);
+    g.fillStyle(0xffee88, 1); g.fillRect(6, 21, 12, 1);
+    outline(g, 4, 4, 16, 16, 0x1a0a00);
   });
 
   // Star (for night background)

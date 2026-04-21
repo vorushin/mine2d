@@ -57,6 +57,9 @@ export class HelpOverlay {
       ['Torch', 'Damages zombies at night in a small radius'],
       ['Campfire', 'Heal faster when standing next to it'],
       ['🎂 Cake', 'Mine it to fully heal (hidden in the world)'],
+      ['☄ Meteors', 'From day 3 — red circle = danger! Drops iron/stone'],
+      ['🌋 Volcano', 'From night 5 — spreads lava. Destroy with iron pick'],
+      ['🩸 Blood Moon', 'Every 5th night — zombies drop 50% more loot'],
     ];
 
     let rowY = contentStartY;

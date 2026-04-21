@@ -23,6 +23,7 @@ export class Dog {
   private walkPhase = 0;
   private hpBarBg?: Phaser.GameObjects.Rectangle;
   private hpBarFg?: Phaser.GameObjects.Rectangle;
+  private nameLabel: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene, world: World, x: number, y: number) {
     this.scene = scene;
@@ -33,6 +34,10 @@ export class Dog {
     this.sprite.setDepth(10);
     this.sprite.setInteractive({ useHandCursor: true });
     this.sprite.on('pointerdown', () => this.onPet());
+    this.nameLabel = scene.add.text(x, y - 18, 'Rex', {
+      fontFamily: 'system-ui', fontSize: '10px', color: '#ffd166', fontStyle: 'bold',
+      stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(11);
   }
 
   get biteDamage(): number {
@@ -154,6 +159,8 @@ export class Dog {
       this.sprite.setRotation(0);
     }
     this.shadow.setPosition(this.sprite.x, this.sprite.y + 9);
+    this.nameLabel.setPosition(this.sprite.x, this.sprite.y - 16);
+    this.nameLabel.setText(this.level > 1 ? `Rex Lv${this.level}` : 'Rex');
     this.updateHpBar();
   }
 
@@ -194,6 +201,7 @@ export class Dog {
     if (this.hpBarBg) this.hpBarBg.destroy();
     if (this.hpBarFg) this.hpBarFg.destroy();
     this.shadow.destroy();
+    this.nameLabel.destroy();
     this.scene.tweens.add({
       targets: this.sprite, alpha: 0, angle: 180, scale: 0.5, duration: 300,
       onComplete: () => this.sprite.destroy(),

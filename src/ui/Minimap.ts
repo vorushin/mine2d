@@ -53,15 +53,26 @@ export class Minimap {
         else if (t.type === TileType.WallIron) c = 0xb0b0c0;
         else if (t.type === TileType.Lava) c = 0xff4d1a;
         else if (t.type === TileType.FlowerField) c = 0xffb0d8;
+        else if (t.type === TileType.Volcano) c = 0xcc2010;
+        else if (t.type === TileType.Crater) c = 0x3a2410;
         this.staticLayer.fillStyle(c, 1);
         this.staticLayer.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
       }
     }
   }
 
+  private repaintTimer = 0;
+
   update(): void {
     const cell = MAP_SIZE / WORLD_WIDTH;
     this.dynamicLayer.clear();
+
+    // Repaint static layer every half-second (handles meteor craters, lava spread)
+    this.repaintTimer += 1;
+    if (this.repaintTimer >= 30) {
+      this.repaintTimer = 0;
+      this.paintStatic();
+    }
 
     // Shop (yellow star-ish)
     const shop = this.gameScene.world.shopPos;
