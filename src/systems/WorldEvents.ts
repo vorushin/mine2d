@@ -44,22 +44,32 @@ export class WorldEvents {
 
   constructor(deps: WorldEventsDeps) {
     this.deps = deps;
+    // Scan the world for a pre-placed volcano (world-gen may seed one)
+    for (let y = 0; y < WORLD_HEIGHT; y++) {
+      for (let x = 0; x < WORLD_WIDTH; x++) {
+        if (deps.world.tiles[y][x].type === TileType.Volcano) {
+          this.volcano = { tx: x, ty: y, growthTimerMs: 10000 };
+          break;
+        }
+      }
+      if (this.volcano) break;
+    }
   }
 
   /** Called when a new day begins (after dawn). */
   onDayStart(): void {
     const night = this.deps.nightNumber();
-    // Meteor strikes: 1 on night-day 3+, 2 on day 6+, 3 on day 10+
-    if (night >= 3) {
+    // Meteor strikes from day 2
+    if (night >= 2) {
       const count = night >= 10 ? 3 : night >= 6 ? 2 : 1;
       for (let i = 0; i < count; i++) {
-        this.scheduleMeteor(2000 + i * 6000);
+        this.scheduleMeteor(3000 + i * 6000);
       }
     }
 
-    // Volcano appears at night 5+, only spawn if none exists yet
-    if (night >= 5 && !this.volcano) {
-      this.spawnVolcano();
+    // Volcano grows a bit faster as nights escalate (speed it up on harder nights)
+    if (this.volcano) {
+      this.volcano.growthTimerMs = Math.min(this.volcano.growthTimerMs, 12000 - Math.min(8000, night * 600));
     }
   }
 
@@ -75,16 +85,18 @@ export class WorldEvents {
     }
     this.meteors = this.meteors.filter((m) => m.remainingMs > 0);
 
-    // Volcano growth
+    // Volcano growth — speeds up as nights pass
     if (this.volcano) {
       const t = this.deps.world.getTileAt(this.volcano.tx, this.volcano.ty);
       if (!t || t.type !== TileType.Volcano) {
-        // Player (or something) destroyed the volcano
         this.volcano = null;
       } else {
         this.volcano.growthTimerMs -= deltaMs;
         if (this.volcano.growthTimerMs <= 0) {
-          this.volcano.growthTimerMs = 14000 + Math.random() * 4000;
+          const night = this.deps.nightNumber();
+          // Start slow (13s) so day 1 feels safe; get down to ~4s by night 10
+          const interval = Math.max(4000, 13000 - (night - 1) * 900);
+          this.volcano.growthTimerMs = interval + Math.random() * 2000;
           this.spreadLava();
         }
       }
@@ -175,27 +187,6 @@ export class WorldEvents {
     ];
     for (const l of loot) {
       this.deps.onPickup(new Pickup(this.deps.scene, wx + (Math.random() - 0.5) * 24, wy + (Math.random() - 0.5) * 24, l.m, l.c));
-    }
-  }
-
-  private spawnVolcano(): void {
-    // Find a spot away from the player, ideally on grass/dirt
-    const player = this.deps.playerTilePos();
-    for (let tries = 0; tries < 60; tries++) {
-      const tx = 4 + Math.floor(Math.random() * (WORLD_WIDTH - 8));
-      const ty = 4 + Math.floor(Math.random() * (WORLD_HEIGHT - 8));
-      const tile = this.deps.world.getTileAt(tx, ty);
-      if (!tile) continue;
-      const d = Math.hypot(tx - player.x, ty - player.y);
-      if (d < 8) continue;
-      if (tile.type === TileType.Grass || tile.type === TileType.Dirt || tile.type === TileType.Sand) {
-        tile.type = TileType.Volcano;
-        tile.hp = 300;
-        this.deps.world.forceSpawnObject(tx, ty);
-        this.volcano = { tx, ty, growthTimerMs: 16000 };
-        this.deps.scene.events.emit('volcano_spawned', tx, ty);
-        return;
-      }
     }
   }
 

@@ -212,6 +212,31 @@ export function generateWorld(seed: number): GeneratedWorld {
     }
   }
 
+  // Place a volcano 10-16 tiles from spawn — visible and threatening from day 1
+  for (let tries = 0; tries < 80; tries++) {
+    const angle = rand() * Math.PI * 2;
+    const dist = 10 + rand() * 6;
+    const cx = Math.floor(spawn.x + Math.cos(angle) * dist);
+    const cy = Math.floor(spawn.y + Math.sin(angle) * dist);
+    if (!inBounds(cx, cy)) continue;
+    const t = tiles[cy][cx];
+    if (t.type === TileType.Grass || t.type === TileType.Dirt || t.type === TileType.Sand) {
+      tiles[cy][cx] = makeTile(TileType.Volcano);
+      // Clear immediate neighbors to dirt so it stands out
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = cx + dx;
+          const ny = cy + dy;
+          if (!inBounds(nx, ny)) continue;
+          const n = tiles[ny][nx];
+          if (n.type === TileType.Tree || n.type === TileType.DeadTree) tiles[ny][nx] = makeTile(TileType.Dirt);
+        }
+      }
+      break;
+    }
+  }
+
   // Place a starter chest near spawn (not on top of spawn)
   for (let tries = 0; tries < 40; tries++) {
     const angle = rand() * Math.PI * 2;

@@ -339,6 +339,10 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.launch('UI', { gameScene: this });
     this.showHint('Day 1 — mine, build, press H for help');
+    // If a volcano was seeded on the map, warn the player
+    if (this.worldEvents.volcanoPos) {
+      this.time.delayedCall(2500, () => this.showBanner('🌋 VOLCANO NEARBY', 'watch where you build — lava will spread'));
+    }
   }
 
   private drawWorldBorder(): void {
