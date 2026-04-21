@@ -605,7 +605,15 @@ export class GameScene extends Phaser.Scene {
     if (act.kind === 'place') {
       if (dist > PLAYER_REACH_TILES) return;
       const t = this.world.getTileAt(tp.x, tp.y);
-      if (!t || (t.type !== TileType.Grass && t.type !== TileType.Dirt)) return;
+      if (!t) return;
+      const wantsWater = act.onto === 'water';
+      const validSurface = wantsWater
+        ? t.type === TileType.Water
+        : (t.type === TileType.Grass || t.type === TileType.Dirt);
+      if (!validSurface) {
+        if (wantsWater) this.showHint('Bridges go on water');
+        return;
+      }
       if (!hotbarAvailable(this.state.hotbarSlot, this.state)) {
         this.showHint('Missing materials');
         return;

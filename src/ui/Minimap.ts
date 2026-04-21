@@ -55,6 +55,7 @@ export class Minimap {
         else if (t.type === TileType.FlowerField) c = 0xffb0d8;
         else if (t.type === TileType.Volcano) c = 0xcc2010;
         else if (t.type === TileType.Crater) c = 0x3a2410;
+        else if (t.type === TileType.Bridge) c = 0x9c6a3f;
         this.staticLayer.fillStyle(c, 1);
         this.staticLayer.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
       }

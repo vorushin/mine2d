@@ -27,6 +27,7 @@ export const enum TileType {
   Pumpkin,
   Volcano,
   Crater,
+  Bridge,
 }
 
 export type MaterialId = 'wood' | 'stone' | 'iron' | 'gold' | 'arrow' | 'bullet' | 'lava' | 'potion' | 'food';
@@ -79,6 +80,7 @@ export const TILE_SPECS: Record<TileType, TileSpec> = {
   [TileType.Pumpkin]: { walkable: false, opaque: true, baseHp: 3, pickaxeTier: 0, dropMaterial: 'wood', dropCount: 1, tintColor: C(0xff8c00) },
   [TileType.Volcano]: { walkable: false, opaque: true, baseHp: 300, pickaxeTier: 2, dropMaterial: 'gold', dropCount: 8, tintColor: C(0xb01a00) },
   [TileType.Crater]: { walkable: true, opaque: false, baseHp: 0, pickaxeTier: 0, tintColor: C(0x3a2410) },
+  [TileType.Bridge]: { walkable: true, opaque: false, baseHp: 8, pickaxeTier: 0, dropMaterial: 'wood', dropCount: 1, tintColor: C(0x9c6a3f) },
 };
 
 export function isPlaceableGround(type: TileType): boolean {

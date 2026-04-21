@@ -13,6 +13,7 @@ export type HotbarAction =
       color: number;
       tile: TileType;
       cost: { material: 'wood' | 'stone' | 'iron' | 'lava'; count: number }[];
+      onto?: 'ground' | 'water';
     };
 
 export const HOTBAR: HotbarAction[] = [
@@ -120,6 +121,16 @@ export const HOTBAR: HotbarAction[] = [
     color: 0xff4d1a,
     tile: TileType.Lava,
     cost: [{ material: 'lava', count: 1 }],
+  },
+  {
+    kind: 'place',
+    label: 'Bridge',
+    name: 'Wooden Bridge',
+    description: 'Place over water to walk across the lake. Cost: 2 wood. Can be mined back.',
+    color: 0x9c6a3f,
+    tile: TileType.Bridge,
+    cost: [{ material: 'wood', count: 2 }],
+    onto: 'water',
   },
 ];
 

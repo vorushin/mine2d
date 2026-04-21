@@ -62,6 +62,7 @@ export class HelpOverlay {
       ['🩸 Blood Moon', 'Every 5th night — zombies drop 50% more loot'],
       ['⚡ Lightning', 'During rain — kills zombies near the bolt'],
       ['✨ Golden Chicken', '20% chance each day — rare! Worth 8 gold'],
+      ['🌉 Bridge', 'Place on water to walk across the lake'],
     ];
 
     let rowY = contentStartY;

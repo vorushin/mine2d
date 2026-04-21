@@ -34,6 +34,7 @@ const TEXTURE_FOR: Partial<Record<TileType, string>> = {
   [TileType.Mushroom]: TEX.mushroom,
   [TileType.Pumpkin]: TEX.pumpkin,
   [TileType.Volcano]: TEX.volcano,
+  [TileType.Bridge]: TEX.bridge,
 };
 
 export class World {
@@ -343,7 +344,13 @@ export class World {
   placeTile(x: number, y: number, type: TileType): boolean {
     const t = this.getTileAt(x, y);
     if (!t) return false;
-    if (t.type !== TileType.Grass && t.type !== TileType.Dirt) return false;
+    const onGround = t.type === TileType.Grass || t.type === TileType.Dirt;
+    // Bridges specifically go onto Water
+    if (type === TileType.Bridge) {
+      if (t.type !== TileType.Water) return false;
+    } else if (!onGround) {
+      return false;
+    }
     t.type = type;
     t.hp = TILE_SPECS[type].baseHp;
     this.spawnObject(x, y);
@@ -367,7 +374,8 @@ export class World {
     }
     const t = this.tiles[y][x];
     this.events.emit('tile_broken', x, y, t.type);
-    t.type = TileType.Grass;
+    // Bridges revert to water (the water ground image is still there beneath them)
+    t.type = t.type === TileType.Bridge ? TileType.Water : TileType.Grass;
     t.hp = 0;
   }
 

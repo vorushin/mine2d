@@ -53,6 +53,7 @@ export const TEX = {
   volcano: 'volcano',
   crater: 'crater',
   meteor: 'meteor',
+  bridge: 'bridge',
 } as const;
 
 export function generateAllTextures(scene: Phaser.Scene): void {
@@ -575,6 +576,27 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillRect(5, 5, 3, 2); g.fillRect(24, 5, 3, 2); g.fillRect(5, 25, 3, 2); g.fillRect(24, 25, 3, 2);
     g.fillStyle(0x2a1a0a, 1);
     g.fillRect(10, 12, 2, 2); g.fillRect(20, 18, 2, 2);
+  });
+
+  // Wooden plank bridge (placed over water)
+  make(scene, TEX.bridge, 32, 32, (g) => {
+    // Water visible at edges
+    g.fillStyle(0x3e6db0, 1); g.fillRect(0, 0, 32, 32);
+    // Planks spanning horizontally
+    g.fillStyle(0x8b5a2b, 1); g.fillRect(0, 4, 32, 6);
+    g.fillStyle(0x9c6a3f, 1); g.fillRect(0, 5, 32, 4);
+    g.fillStyle(0x6a3e20, 1); g.fillRect(0, 9, 32, 1);
+    g.fillStyle(0x8b5a2b, 1); g.fillRect(0, 14, 32, 6);
+    g.fillStyle(0x9c6a3f, 1); g.fillRect(0, 15, 32, 4);
+    g.fillStyle(0x6a3e20, 1); g.fillRect(0, 19, 32, 1);
+    g.fillStyle(0x8b5a2b, 1); g.fillRect(0, 24, 32, 6);
+    g.fillStyle(0x9c6a3f, 1); g.fillRect(0, 25, 32, 4);
+    g.fillStyle(0x6a3e20, 1); g.fillRect(0, 29, 32, 1);
+    // Nails
+    g.fillStyle(0x4a3020, 1);
+    g.fillRect(3, 6, 1, 1); g.fillRect(15, 6, 1, 1); g.fillRect(28, 6, 1, 1);
+    g.fillRect(3, 16, 1, 1); g.fillRect(15, 16, 1, 1); g.fillRect(28, 16, 1, 1);
+    g.fillRect(3, 26, 1, 1); g.fillRect(15, 26, 1, 1); g.fillRect(28, 26, 1, 1);
   });
 
   // Meteor (the falling rock)
