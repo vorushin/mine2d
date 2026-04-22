@@ -19,6 +19,7 @@ const CONTROLS: [string, string][] = [
   ['Shift', 'Dash — 2× speed burst'],
   ['Click Rex', 'Pet the dog (+3 HP, hearts)'],
   ['N', 'Skip to night (day only)'],
+  ['K', 'Save game (auto-saves at dawn too)'],
   ['H or ?', 'Toggle this help'],
 ];
 

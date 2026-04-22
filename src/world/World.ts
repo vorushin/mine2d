@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from '../config';
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from './tileTypes';
-import { generateWorld, Tile } from './generate';
+import { generateWorld, Tile, GeneratedWorld } from './generate';
 import { TEX } from '../gfx/textures';
 
 export interface TileMineResult {
@@ -47,9 +47,9 @@ export class World {
   private hpBars: Map<number, Phaser.GameObjects.Rectangle> = new Map();
   readonly events = new Phaser.Events.EventEmitter();
 
-  constructor(scene: Phaser.Scene, seed: number) {
+  constructor(scene: Phaser.Scene, source: number | GeneratedWorld) {
     this.scene = scene;
-    const gen = generateWorld(seed);
+    const gen: GeneratedWorld = typeof source === 'number' ? generateWorld(source) : source;
     this.tiles = gen.tiles;
     this.playerSpawn = gen.playerSpawn;
     this.shopPos = gen.shopPos;

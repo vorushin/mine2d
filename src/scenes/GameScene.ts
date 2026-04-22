@@ -11,6 +11,7 @@ import { Chicken } from '../entities/Chicken';
 import { InputSystem } from '../systems/Input';
 import { DayNightCycle } from '../systems/DayNightCycle';
 import { SaveStore } from '../systems/SaveStore';
+import { SaveLoad, SaveSnapshot } from '../systems/SaveLoad';
 import { sounds } from '../systems/Sound';
 import { Effects } from '../gfx/Effects';
 import { WorldEvents } from '../systems/WorldEvents';
@@ -52,23 +53,43 @@ export class GameScene extends Phaser.Scene {
   private lightningTimerMs = 0;
   private stars: Phaser.GameObjects.Image[] = [];
 
+  private pendingLoad: SaveSnapshot | null = null;
+
   constructor() {
     super('Game');
   }
 
+  init(data?: { loadSnapshot?: SaveSnapshot }): void {
+    this.pendingLoad = data?.loadSnapshot ?? null;
+  }
+
   create(): void {
-    this.state = makeGameState();
-    this.state.playerHp = PLAYER_MAX_HP;
-    this.state.playerMaxHp = PLAYER_MAX_HP;
-    // Starter kit — enough resources to try the game right away.
-    addItem(this.state.inventory, 'wood', 12);
-    addItem(this.state.inventory, 'stone', 4);
+    const loaded = this.pendingLoad;
+    this.pendingLoad = null;
+
+    if (loaded) {
+      this.state = loaded.state;
+    } else {
+      this.state = makeGameState();
+      this.state.playerHp = PLAYER_MAX_HP;
+      this.state.playerMaxHp = PLAYER_MAX_HP;
+      addItem(this.state.inventory, 'wood', 12);
+      addItem(this.state.inventory, 'stone', 4);
+    }
 
     this.cameras.main.setBackgroundColor(0x0e1116);
     this.physics.world.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
 
     const seed = Math.floor(Math.random() * 2 ** 31);
-    this.world = new World(this, seed);
+    if (loaded) {
+      this.world = new World(this, {
+        tiles: loaded.tiles,
+        playerSpawn: loaded.playerSpawn,
+        shopPos: loaded.shopPos,
+      });
+    } else {
+      this.world = new World(this, seed);
+    }
     this.world.drawAll();
     this.drawDecor(seed);
 
@@ -83,7 +104,23 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.player = new Player(this, this.state, this.world);
+    // Restore player position from save if present
+    if (loaded) {
+      this.player.sprite.x = loaded.playerWorldPos.x;
+      this.player.sprite.y = loaded.playerWorldPos.y;
+    }
     this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
+    if (loaded?.dog) {
+      if (!loaded.dog.alive) {
+        this.dog.die();
+        this.dog = undefined;
+      } else {
+        this.dog.sprite.setPosition(loaded.dog.x, loaded.dog.y);
+        this.dog.hp = loaded.dog.hp;
+        this.dog.level = loaded.dog.level;
+        this.dog.kills = loaded.dog.kills;
+      }
+    }
     this.spawnChickens();
     this.cameras.main.startFollow(this.player.sprite, true, 0.12, 0.12);
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
@@ -121,6 +158,8 @@ export class GameScene extends Phaser.Scene {
         this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
         this.showHint('🐶 Rex is back!');
       }
+      // Auto-save the run
+      this.saveRun('Auto-saved at dawn');
       // Replant a few trees each dawn (nature recovers)
       let planted = 0;
       for (let tries = 0; tries < 40 && planted < 3; tries++) {
@@ -208,6 +247,9 @@ export class GameScene extends Phaser.Scene {
       sounds.ensure();
       this.scene.get('UI').events.emit('open_modal', 'craft');
     });
+
+    // K — manual save
+    this.input.keyboard?.on('keydown-K', () => this.saveRun('Manual save'));
 
     // P — drink a potion
     this.input.keyboard?.on('keydown-P', () => {
@@ -848,6 +890,8 @@ export class GameScene extends Phaser.Scene {
       sounds.playerHurt();
       this.time.delayedCall(600, () => {
         SaveStore.updateBestScore(this.state.score);
+        // Death ends the run — clear the save so "Continue" doesn't offer it
+        SaveLoad.clear();
         this.scene.stop('UI');
         this.scene.start('GameOver', { score: this.state.score, stats: this.state.stats, state: this.state });
       });
@@ -1090,6 +1134,20 @@ export class GameScene extends Phaser.Scene {
         sounds.click();
       });
     }
+  }
+
+  saveRun(hintText = 'Game saved'): void {
+    const ok = SaveLoad.save({
+      state: this.state,
+      tiles: this.world.tiles,
+      playerSpawn: this.world.playerSpawn,
+      shopPos: this.world.shopPos,
+      playerWorldPos: { x: this.player.x, y: this.player.y },
+      dog: this.dog
+        ? { alive: this.dog.alive, hp: this.dog.hp, level: this.dog.level, kills: this.dog.kills, x: this.dog.x, y: this.dog.y }
+        : null,
+    });
+    if (ok) this.showHint(`💾 ${hintText}`);
   }
 
   showBanner(title: string, subtitle: string): void {
