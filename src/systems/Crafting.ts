@@ -16,7 +16,8 @@ export type CraftAction =
   | { kind: 'pickaxe_upgrade'; toTier: 1 | 2 }
   | { kind: 'sword_upgrade'; toTier: 1 }
   | { kind: 'unlock_bow' }
-  | { kind: 'unlock_pistol' };
+  | { kind: 'unlock_pistol' }
+  | { kind: 'unlock_hammer' };
 
 export const RECIPES: Recipe[] = [
   {
@@ -61,6 +62,34 @@ export const RECIPES: Recipe[] = [
     produces: { kind: 'material', material: 'arrow', count: 20 },
     requiresBench: false,
   },
+  {
+    id: 'reinforced_wall_x4',
+    label: 'Reinforced Wall ×4',
+    inputs: [{ material: 'iron', count: 2 }, { material: 'stone', count: 3 }],
+    produces: { kind: 'material', material: 'wallReinforced', count: 4 },
+    requiresBench: false,
+  },
+  {
+    id: 'repair_hammer',
+    label: 'Repair Hammer',
+    inputs: [{ material: 'wood', count: 2 }, { material: 'iron', count: 1 }],
+    produces: { kind: 'unlock_hammer' },
+    requiresBench: false,
+  },
+  {
+    id: 'flame_turret',
+    label: 'Flame Turret',
+    inputs: [{ material: 'wood', count: 6 }, { material: 'stone', count: 4 }, { material: 'iron', count: 4 }],
+    produces: { kind: 'material', material: 'turretFlame', count: 1 },
+    requiresBench: false,
+  },
+  {
+    id: 'bomb_x3',
+    label: '3 Bombs',
+    inputs: [{ material: 'wood', count: 3 }, { material: 'iron', count: 2 }],
+    produces: { kind: 'material', material: 'bomb', count: 3 },
+    requiresBench: false,
+  },
 ];
 
 export type CraftOutcome = { ok: true } | { ok: false; reason: 'missing_materials' | 'no_bench' | 'already_have' };
@@ -75,6 +104,7 @@ export function canCraft(recipe: Recipe, state: GameState, benchAvailable: boole
   if (a.kind === 'sword_upgrade' && state.swordTier >= a.toTier) return { ok: false, reason: 'already_have' };
   if (a.kind === 'unlock_bow' && state.hasBow) return { ok: false, reason: 'already_have' };
   if (a.kind === 'unlock_pistol' && state.hasPistol) return { ok: false, reason: 'already_have' };
+  if (a.kind === 'unlock_hammer' && state.hasHammer) return { ok: false, reason: 'already_have' };
   return { ok: true };
 }
 
@@ -98,6 +128,9 @@ export function applyCraft(recipe: Recipe, state: GameState, benchAvailable: boo
       break;
     case 'unlock_pistol':
       state.hasPistol = true;
+      break;
+    case 'unlock_hammer':
+      state.hasHammer = true;
       break;
   }
   return { ok: true };

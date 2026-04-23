@@ -1,11 +1,18 @@
 import Phaser from 'phaser';
 import { World } from '../world/World';
 import { Player } from './Player';
-import { TILE_SIZE, COLORS, ZOMBIE_BASE_HP, ZOMBIE_BASE_DAMAGE, ZOMBIE_BASE_SPEED } from '../config';
+import { TILE_SIZE, COLORS, ZOMBIE_BASE_HP, ZOMBIE_BASE_DAMAGE, ZOMBIE_BASE_SPEED, BRUTE_CHANCE_BY_NIGHT } from '../config';
 import { TileType, TILE_SPECS } from '../world/tileTypes';
 import { bfsNextStep } from '../systems/Pathfinding';
 
-export type ZombieVariant = 'normal' | 'fast' | 'armored' | 'boss';
+export type ZombieVariant = 'normal' | 'fast' | 'armored' | 'brute' | 'boss';
+
+export function bruteChanceForNight(night: number): number {
+  const arr = BRUTE_CHANCE_BY_NIGHT;
+  if (arr.length === 0) return 0;
+  const idx = Math.max(0, night - 1);
+  return arr[Math.min(idx, arr.length - 1)];
+}
 
 export interface ZombieSpec {
   variant: ZombieVariant;
@@ -18,7 +25,17 @@ export interface ZombieSpec {
 export function specForNight(night: number): ZombieSpec {
   const armoredChance = night >= 8 ? 0.2 : night >= 5 ? 0.1 : 0;
   const fastChance = night >= 5 ? 0.3 : night >= 3 ? 0.15 : 0;
+  const bruteChance = bruteChanceForNight(night);
 
+  if (bruteChance > 0 && Math.random() < bruteChance) {
+    return {
+      variant: 'brute',
+      hp: ZOMBIE_BASE_HP * 4.5,
+      damage: ZOMBIE_BASE_DAMAGE * 2.2,
+      speed: ZOMBIE_BASE_SPEED * 0.75,
+      tint: 0xff8080,
+    };
+  }
   if (armoredChance > 0 && Math.random() < armoredChance) {
     return {
       variant: 'armored',
@@ -64,6 +81,7 @@ export function generateZombieTextures(scene: Phaser.Scene): void {
     { key: 'zombie_normal', body: 0x3d7a3d, head: 0x2f5e2f, eye: 0xffdb3d },
     { key: 'zombie_fast', body: 0xa8d65c, head: 0x72a03b, eye: 0xff5050 },
     { key: 'zombie_armored', body: 0x6f4a22, head: 0x553716, eye: 0xff9030, accent: 0x8a8a8a, armored: true },
+    { key: 'zombie_brute', body: 0x8a2030, head: 0x5a1018, eye: 0xffe030, accent: 0x2a2a2a, armored: true },
   ];
 
   for (const v of variants) {
@@ -171,16 +189,22 @@ export class Zombie {
       spec.variant === 'boss' ? 'zombie_boss' :
       spec.variant === 'fast' ? 'zombie_fast' :
       spec.variant === 'armored' ? 'zombie_armored' :
+      spec.variant === 'brute' ? 'zombie_brute' :
       'zombie_normal';
     const shadowW =
       spec.variant === 'boss' ? 42 :
+      spec.variant === 'brute' ? 32 :
       spec.variant === 'armored' ? 26 :
       spec.variant === 'fast' ? 20 : 22;
-    this.shadow = scene.add.ellipse(worldX, worldY + (spec.variant === 'boss' ? 18 : 12), shadowW, spec.variant === 'boss' ? 10 : 6, 0x000000, spec.variant === 'boss' ? 0.45 : 0.35);
+    const shadowOffY = spec.variant === 'boss' ? 18 : spec.variant === 'brute' ? 16 : 12;
+    const shadowH = spec.variant === 'boss' ? 10 : spec.variant === 'brute' ? 8 : 6;
+    const shadowA = spec.variant === 'boss' ? 0.45 : spec.variant === 'brute' ? 0.4 : 0.35;
+    this.shadow = scene.add.ellipse(worldX, worldY + shadowOffY, shadowW, shadowH, 0x000000, shadowA);
     this.shadow.setDepth(8);
     this.sprite = scene.add.image(worldX, worldY, key);
     const scale =
       spec.variant === 'boss' ? 1.8 :
+      spec.variant === 'brute' ? 1.9 :
       spec.variant === 'armored' ? 1.6 :
       spec.variant === 'fast' ? 1.25 : 1.4;
     this.sprite.setScale(scale);

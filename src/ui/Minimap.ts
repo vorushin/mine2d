@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { WORLD_WIDTH, WORLD_HEIGHT, TILE_SIZE } from '../config';
 import { GameScene } from '../scenes/GameScene';
 import { TileType } from '../world/tileTypes';
+import { isInBounds } from '../state/GameState';
 
 const MAP_SIZE = 140;
 
@@ -38,24 +39,32 @@ export class Minimap {
   private paintStatic(): void {
     const cell = MAP_SIZE / WORLD_WIDTH;
     this.staticLayer.clear();
+    const bounds = this.gameScene.state.revealedBounds;
     for (let y = 0; y < WORLD_HEIGHT; y++) {
       for (let x = 0; x < WORLD_WIDTH; x++) {
-        const t = this.gameScene.world.tiles[y][x];
-        let c = 0x3a7a3a; // grass
-        if (t.type === TileType.Dirt) c = 0x6a4a2b;
-        else if (t.type === TileType.Sand) c = 0xd8c779;
-        else if (t.type === TileType.Water) c = 0x3e6db0;
-        else if (t.type === TileType.Stone || t.type === TileType.WallStone) c = 0x808080;
-        else if (t.type === TileType.IronOre) c = 0xc9b037;
-        else if (t.type === TileType.GoldOre) c = 0xffd700;
-        else if (t.type === TileType.Tree || t.type === TileType.DeadTree) c = 0x1d5820;
-        else if (t.type === TileType.WallWood) c = 0x9c6a3f;
-        else if (t.type === TileType.WallIron) c = 0xb0b0c0;
-        else if (t.type === TileType.Lava) c = 0xff4d1a;
-        else if (t.type === TileType.FlowerField) c = 0xffb0d8;
-        else if (t.type === TileType.Volcano) c = 0xcc2010;
-        else if (t.type === TileType.Crater) c = 0x3a2410;
-        else if (t.type === TileType.Bridge) c = 0x9c6a3f;
+        let c: number;
+        if (!isInBounds(bounds, x, y)) {
+          c = 0x22252d; // unrevealed — dark mist
+        } else {
+          const t = this.gameScene.world.tiles[y][x];
+          c = 0x3a7a3a; // grass
+          if (t.type === TileType.Dirt) c = 0x6a4a2b;
+          else if (t.type === TileType.Sand) c = 0xd8c779;
+          else if (t.type === TileType.Water) c = 0x3e6db0;
+          else if (t.type === TileType.Stone || t.type === TileType.WallStone) c = 0x808080;
+          else if (t.type === TileType.IronOre) c = 0xc9b037;
+          else if (t.type === TileType.GoldOre) c = 0xffd700;
+          else if (t.type === TileType.Tree || t.type === TileType.DeadTree) c = 0x1d5820;
+          else if (t.type === TileType.WallWood) c = 0x9c6a3f;
+          else if (t.type === TileType.WallIron) c = 0xb0b0c0;
+          else if (t.type === TileType.WallReinforced) c = 0x5a5a70;
+          else if (t.type === TileType.Lava) c = 0xff4d1a;
+          else if (t.type === TileType.FlowerField) c = 0xffb0d8;
+          else if (t.type === TileType.Volcano) c = 0xcc2010;
+          else if (t.type === TileType.Crater) c = 0x3a2410;
+          else if (t.type === TileType.Bridge) c = 0x9c6a3f;
+          else if (t.type === TileType.TurretFlame) c = 0xff8030;
+        }
         this.staticLayer.fillStyle(c, 1);
         this.staticLayer.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
       }

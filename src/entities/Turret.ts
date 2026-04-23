@@ -11,9 +11,12 @@ import {
   TURRET_ADVANCED_DAMAGE,
   TURRET_ADVANCED_FIRE_MS,
   TURRET_ADVANCED_RANGE,
+  TURRET_FLAME_DAMAGE,
+  TURRET_FLAME_FIRE_MS,
+  TURRET_FLAME_RANGE,
 } from '../config';
 
-export type TurretKind = 'basic' | 'advanced';
+export type TurretKind = 'basic' | 'advanced' | 'flame';
 
 export interface TurretInstance {
   tileX: number;
@@ -26,7 +29,10 @@ export interface TurretInstance {
 export function makeTurretBarrel(scene: Phaser.Scene, tileX: number, tileY: number, kind: TurretKind): Phaser.GameObjects.Rectangle {
   const cx = tileX * TILE_SIZE + TILE_SIZE / 2;
   const cy = tileY * TILE_SIZE + TILE_SIZE / 2 - 6;
-  const color = kind === 'basic' ? COLORS.turret_basic : COLORS.turret_advanced;
+  const color =
+    kind === 'basic' ? COLORS.turret_basic :
+    kind === 'advanced' ? COLORS.turret_advanced :
+    COLORS.turret_flame;
   const barrel = scene.add.rectangle(cx, cy, 5, TILE_SIZE * 0.5, color);
   barrel.setDepth(11);
   barrel.setStrokeStyle(1, 0x000000, 0.6);
@@ -35,15 +41,21 @@ export function makeTurretBarrel(scene: Phaser.Scene, tileX: number, tileY: numb
 }
 
 export function turretRange(kind: TurretKind): number {
-  return kind === 'basic' ? TURRET_BASIC_RANGE : TURRET_ADVANCED_RANGE;
+  if (kind === 'basic') return TURRET_BASIC_RANGE;
+  if (kind === 'advanced') return TURRET_ADVANCED_RANGE;
+  return TURRET_FLAME_RANGE;
 }
 
 export function turretFirePeriod(kind: TurretKind): number {
-  return kind === 'basic' ? TURRET_BASIC_FIRE_MS : TURRET_ADVANCED_FIRE_MS;
+  if (kind === 'basic') return TURRET_BASIC_FIRE_MS;
+  if (kind === 'advanced') return TURRET_ADVANCED_FIRE_MS;
+  return TURRET_FLAME_FIRE_MS;
 }
 
 export function turretDamage(kind: TurretKind): number {
-  return kind === 'basic' ? TURRET_BASIC_DAMAGE : TURRET_ADVANCED_DAMAGE;
+  if (kind === 'basic') return TURRET_BASIC_DAMAGE;
+  if (kind === 'advanced') return TURRET_ADVANCED_DAMAGE;
+  return TURRET_FLAME_DAMAGE;
 }
 
 /**
@@ -85,7 +97,8 @@ export function tickTurrets(
           dy: aim.dy,
           damage: turretDamage(t.kind),
           owner: 'turret',
-          kind: t.kind === 'basic' ? 'arrow' : 'bullet',
+          kind: t.kind === 'basic' ? 'arrow' : t.kind === 'advanced' ? 'bullet' : 'flame',
+          rangePx: t.kind === 'flame' ? TURRET_FLAME_RANGE : undefined,
         });
       }
     }

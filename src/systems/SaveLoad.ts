@@ -1,4 +1,4 @@
-import { GameState, RunStats, makeGameState } from '../state/GameState';
+import { GameState, RevealedBounds, RunStats, initialRevealedBounds, makeGameState } from '../state/GameState';
 import { Tile } from '../world/generate';
 import { TileType, TILE_SPECS, MaterialId } from '../world/tileTypes';
 import { WORLD_HEIGHT, WORLD_WIDTH } from '../config';
@@ -51,6 +51,8 @@ const TILE_NAMES: Record<TileType, string> = {
   [TileType.Volcano]: 'volcano',
   [TileType.Crater]: 'crater',
   [TileType.Bridge]: 'bridge',
+  [TileType.WallReinforced]: 'wall_reinforced',
+  [TileType.TurretFlame]: 'turret_flame',
 };
 
 const NAME_TO_TILE: Record<string, TileType> = Object.fromEntries(
@@ -87,8 +89,13 @@ export interface SaveData {
     swordTier: number;
     hasBow: boolean;
     hasPistol: boolean;
+    hasHammer: boolean;
     hotbarSlot: number;
     inventory: Record<string, number>;
+  };
+  terrain?: {
+    revealedBounds: RevealedBounds;
+    daysUntilNextExpansion: number;
   };
   cycle: {
     phase: GameState['phase'];
@@ -181,8 +188,13 @@ function serialize(snap: SaveSnapshot): SaveData {
       swordTier: snap.state.swordTier,
       hasBow: snap.state.hasBow,
       hasPistol: snap.state.hasPistol,
+      hasHammer: snap.state.hasHammer,
       hotbarSlot: snap.state.hotbarSlot,
       inventory: { ...snap.state.inventory.counts } as Record<string, number>,
+    },
+    terrain: {
+      revealedBounds: snap.state.revealedBounds,
+      daysUntilNextExpansion: snap.state.daysUntilNextExpansion,
     },
     cycle: {
       phase: snap.state.phase,
@@ -213,6 +225,7 @@ function stringOr<T extends string>(v: unknown, allowed: readonly T[], fallback:
 const VALID_PHASES = ['day', 'dusk', 'night', 'dawn'] as const;
 const VALID_MATERIALS: readonly MaterialId[] = [
   'wood', 'stone', 'iron', 'gold', 'arrow', 'bullet', 'lava', 'potion', 'food',
+  'bomb', 'wallReinforced', 'turretFlame',
 ];
 
 function deserialize(raw: unknown): SaveSnapshot | null {
@@ -277,6 +290,7 @@ function deserialize(raw: unknown): SaveSnapshot | null {
   state.swordTier = Math.max(0, Math.min(1, intOr(p.swordTier, 0))) as 0 | 1;
   state.hasBow = boolOr(p.hasBow, false);
   state.hasPistol = boolOr(p.hasPistol, false);
+  state.hasHammer = boolOr(p.hasHammer, false);
   state.hotbarSlot = Math.max(0, intOr(p.hotbarSlot, 0));
   state.inventory.counts = inventory;
   state.phase = stringOr(cyc.phase, VALID_PHASES, 'day');
@@ -290,6 +304,22 @@ function deserialize(raw: unknown): SaveSnapshot | null {
     goldEarned: Math.max(0, intOr(stats.goldEarned, 0)),
   };
   state.running = true;
+
+  // Terrain reveal bounds (optional — older saves default to the initial square)
+  const terrain = (data.terrain ?? {}) as Partial<NonNullable<SaveData['terrain']>>;
+  if (terrain.revealedBounds) {
+    const rb = terrain.revealedBounds as Partial<RevealedBounds>;
+    const init = initialRevealedBounds();
+    state.revealedBounds = {
+      xMin: Math.max(0, Math.min(WORLD_WIDTH - 1, intOr(rb.xMin, init.xMin))),
+      yMin: Math.max(0, Math.min(WORLD_HEIGHT - 1, intOr(rb.yMin, init.yMin))),
+      xMax: Math.max(0, Math.min(WORLD_WIDTH - 1, intOr(rb.xMax, init.xMax))),
+      yMax: Math.max(0, Math.min(WORLD_HEIGHT - 1, intOr(rb.yMax, init.yMax))),
+    };
+  } else {
+    state.revealedBounds = initialRevealedBounds();
+  }
+  state.daysUntilNextExpansion = Math.max(0, intOr(terrain.daysUntilNextExpansion, 2));
 
   // Player world position; if absent, use spawn.
   const playerWorldPos = {

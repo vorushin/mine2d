@@ -26,6 +26,8 @@ const TEXTURE_FOR: Partial<Record<TileType, string>> = {
   [TileType.Chest]: TEX.chest,
   [TileType.TurretBasic]: TEX.turret_basic,
   [TileType.TurretAdvanced]: TEX.turret_advanced,
+  [TileType.TurretFlame]: TEX.turret_flame,
+  [TileType.WallReinforced]: TEX.wall_reinforced,
   [TileType.Lava]: TEX.lava,
   [TileType.ShopNPC]: TEX.shop_npc,
   [TileType.DeadTree]: TEX.dead_tree,
@@ -46,6 +48,13 @@ export class World {
   private tileObjects: Map<number, Phaser.GameObjects.GameObject> = new Map();
   private hpBars: Map<number, Phaser.GameObjects.Rectangle> = new Map();
   readonly events = new Phaser.Events.EventEmitter();
+  /**
+   * Mist mask predicate. Tiles outside the revealed region are
+   * effectively invisible/impassable to gameplay. The World itself
+   * stays a fixed-size grid; `DynamicTerrain` sets this predicate
+   * so World queries can respect the current frontier.
+   */
+  private revealed: (x: number, y: number) => boolean = () => true;
 
   constructor(scene: Phaser.Scene, source: number | GeneratedWorld) {
     this.scene = scene;
@@ -53,6 +62,14 @@ export class World {
     this.tiles = gen.tiles;
     this.playerSpawn = gen.playerSpawn;
     this.shopPos = gen.shopPos;
+  }
+
+  setRevealedPredicate(pred: (x: number, y: number) => boolean): void {
+    this.revealed = pred;
+  }
+
+  isRevealed(x: number, y: number): boolean {
+    return this.revealed(x, y);
   }
 
   drawAll(): void {
@@ -146,7 +163,7 @@ export class World {
         repeat: -1,
         duration: 400 + Math.random() * 300,
       });
-    } else if (t.type === TileType.TurretBasic || t.type === TileType.TurretAdvanced) {
+    } else if (t.type === TileType.TurretBasic || t.type === TileType.TurretAdvanced || t.type === TileType.TurretFlame) {
       img.setOrigin(0.5, 1);
       img.y = y * TILE_SIZE + TILE_SIZE - 1;
     } else if (t.type === TileType.CraftingBench) {
@@ -258,6 +275,7 @@ export class World {
   isWalkable(x: number, y: number): boolean {
     const t = this.getTileAt(x, y);
     if (!t) return false;
+    if (!this.revealed(x, y)) return false;
     if (t.type === TileType.DoorWood || t.type === TileType.DoorIron) {
       const obj = this.tileObjects.get(this.key(x, y));
       return obj?.getData('open') === true;
@@ -269,6 +287,7 @@ export class World {
   blocksProjectile(x: number, y: number): boolean {
     const t = this.getTileAt(x, y);
     if (!t) return true;
+    if (!this.revealed(x, y)) return true;
     if (t.type === TileType.Torch || t.type === TileType.Lava) return false;
     return TILE_SPECS[t.type].opaque;
   }
@@ -276,6 +295,7 @@ export class World {
   damageTile(x: number, y: number, amount: number, opts?: { onDamage?: () => void }): boolean {
     const t = this.getTileAt(x, y);
     if (!t || !isBreakable(t.type)) return false;
+    if (!this.revealed(x, y)) return false;
     t.hp -= amount;
     this.updateHpBar(x, y, t);
     this.flashTile(x, y);
@@ -344,6 +364,7 @@ export class World {
   placeTile(x: number, y: number, type: TileType): boolean {
     const t = this.getTileAt(x, y);
     if (!t) return false;
+    if (!this.revealed(x, y)) return false;
     const onGround = t.type === TileType.Grass || t.type === TileType.Dirt;
     // Bridges specifically go onto Water
     if (type === TileType.Bridge) {
@@ -448,6 +469,7 @@ function depthFor(type: TileType): number {
       return 5;
     case TileType.TurretBasic:
     case TileType.TurretAdvanced:
+    case TileType.TurretFlame:
     case TileType.CraftingBench:
     case TileType.Chest:
     case TileType.ShopNPC:

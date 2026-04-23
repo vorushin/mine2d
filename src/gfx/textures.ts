@@ -24,6 +24,10 @@ export const TEX = {
   torch: 'torch',
   turret_basic: 'turret_basic',
   turret_advanced: 'turret_advanced',
+  turret_flame: 'turret_flame',
+  wall_reinforced: 'wall_reinforced',
+  bomb: 'bomb',
+  flame: 'flame',
   crafting_bench: 'crafting_bench',
   chest: 'chest',
   lava: 'lava',
@@ -241,6 +245,63 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillStyle(0x2a2a3a, 1);
     g.fillRect(8, 22, 1, 1); g.fillRect(23, 22, 1, 1); g.fillRect(8, 27, 1, 1); g.fillRect(23, 27, 1, 1);
     outline(g, 6, 12, 20, 18, 0x1a1a2a);
+  });
+
+  make(scene, TEX.turret_flame, 32, 32, (g) => {
+    // base
+    g.fillStyle(0x5a4038, 1); g.fillRect(6, 20, 20, 10);
+    g.fillStyle(0x3a2a24, 1); g.fillRect(6, 28, 20, 2);
+    // orange dome with flame slit
+    g.fillStyle(0xff8030, 1); g.fillRect(10, 10, 12, 12);
+    g.fillStyle(0xffc070, 1); g.fillRect(11, 11, 10, 4);
+    g.fillStyle(0xc64015, 1); g.fillRect(10, 20, 12, 2);
+    // nozzle
+    g.fillStyle(0x2a2028, 1); g.fillRect(13, 8, 6, 4);
+    g.fillStyle(0xffee88, 1); g.fillRect(14, 8, 4, 2);
+    // bolts
+    g.fillStyle(0x2a1a14, 1);
+    g.fillRect(8, 22, 1, 1); g.fillRect(23, 22, 1, 1); g.fillRect(8, 27, 1, 1); g.fillRect(23, 27, 1, 1);
+    outline(g, 6, 10, 20, 20, 0x1a0a06);
+  });
+
+  make(scene, TEX.wall_reinforced, 32, 32, (g) => {
+    g.fillStyle(0x5a5a70, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x404056, 1);
+    g.fillRect(0, 0, 32, 2); g.fillRect(0, 30, 32, 2);
+    g.fillRect(0, 0, 2, 32); g.fillRect(30, 0, 2, 32);
+    // iron cross-bracing
+    g.fillStyle(0x808090, 1);
+    g.fillRect(14, 4, 4, 24); g.fillRect(4, 14, 24, 4);
+    // rivets at corners
+    g.fillStyle(0xd0d0d8, 1);
+    g.fillRect(5, 5, 2, 2); g.fillRect(25, 5, 2, 2); g.fillRect(5, 25, 2, 2); g.fillRect(25, 25, 2, 2);
+    // dark centers on rivets
+    g.fillStyle(0x1a1a2a, 1);
+    g.fillRect(6, 6, 1, 1); g.fillRect(26, 6, 1, 1); g.fillRect(6, 26, 1, 1); g.fillRect(26, 26, 1, 1);
+    // hazard stripes on central cross
+    g.fillStyle(0xffcc33, 1);
+    g.fillRect(15, 6, 1, 4); g.fillRect(15, 12, 1, 4); g.fillRect(15, 18, 1, 4);
+    outline(g, 0, 0, 32, 32, 0x0a0a18);
+  });
+
+  make(scene, TEX.bomb, 16, 18, (g) => {
+    // black sphere
+    g.fillStyle(0x2a2a2a, 1); g.fillRect(2, 5, 12, 12);
+    g.fillStyle(0x1a1a1a, 1); g.fillRect(2, 14, 12, 3);
+    g.fillStyle(0x4a4a4a, 1); g.fillRect(4, 6, 4, 2);
+    // fuse
+    g.fillStyle(0x8b5a2b, 1); g.fillRect(7, 1, 2, 5);
+    // spark
+    g.fillStyle(0xffee88, 1); g.fillRect(8, 0, 2, 2);
+    g.fillStyle(0xff8030, 1); g.fillRect(7, 0, 1, 1);
+    outline(g, 2, 5, 12, 12, 0x000000);
+  });
+
+  make(scene, TEX.flame, 10, 8, (g) => {
+    g.fillStyle(0xff4020, 1); g.fillRect(0, 2, 10, 4);
+    g.fillStyle(0xff8030, 1); g.fillRect(1, 3, 8, 2);
+    g.fillStyle(0xffee88, 1); g.fillRect(2, 3, 5, 1);
+    g.fillStyle(0xffffff, 1); g.fillRect(3, 3, 2, 1);
   });
 
   make(scene, TEX.turret_advanced, 32, 32, (g) => {

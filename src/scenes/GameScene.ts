@@ -15,9 +15,12 @@ import { SaveLoad, SaveSnapshot } from '../systems/SaveLoad';
 import { sounds } from '../systems/Sound';
 import { Effects } from '../gfx/Effects';
 import { WorldEvents } from '../systems/WorldEvents';
+import { DynamicTerrain } from '../systems/DynamicTerrain';
+import { useHammer, bombExplosion, BombVictim } from '../systems/Engineering';
 import { GameState, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
 import { HOTBAR, hotbarAvailable } from '../ui/hotbarDef';
+import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
 
 export class GameScene extends Phaser.Scene {
   state!: GameState;
@@ -26,6 +29,7 @@ export class GameScene extends Phaser.Scene {
   cycle!: DayNightCycle;
   effects!: Effects;
   worldEvents!: WorldEvents;
+  dynamicTerrain!: DynamicTerrain;
   zombies: Zombie[] = [];
   projectiles: Projectile[] = [];
   turrets: TurretInstance[] = [];
@@ -94,6 +98,17 @@ export class GameScene extends Phaser.Scene {
     this.drawDecor(seed);
 
     this.effects = new Effects(this);
+
+    // Dynamic terrain owns the mist barrier + reveal animation. Constructed
+    // before WorldEvents so the world predicate is set and meteors/lava
+    // spread only touch revealed tiles.
+    this.dynamicTerrain = new DynamicTerrain({
+      scene: this,
+      world: this.world,
+      effects: this.effects,
+      state: this.state,
+    });
+
     this.worldEvents = new WorldEvents({
       scene: this,
       world: this.world,
@@ -212,7 +227,12 @@ export class GameScene extends Phaser.Scene {
       if (phase === 'day') {
         this.showHint('Day — mine, build, craft');
         this.worldEvents.onDayStart();
+        this.dynamicTerrain.onDayStart();
       }
+    });
+
+    this.events.on('terrain_revealed', () => {
+      this.showHint('🌫 The mist recedes — new land is accessible');
     });
 
     this.events.on('volcano_spawned', (tx: number, ty: number) => {
@@ -644,6 +664,46 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (act.kind === 'hammer') {
+      if (dist > PLAYER_REACH_TILES) return;
+      if (!this.state.hasHammer) return this.showHint('Craft a repair hammer first (press C)');
+      const outcome = useHammer(this.world, tp.x, tp.y, this.state);
+      if (outcome.ok) {
+        sounds.place();
+        const wc = this.world.tileToWorldCenter(tp.x, tp.y);
+        this.effects.burst(wc.x, wc.y, 0xffffaa, 10, 90, 380, 1.0);
+        this.popNumber(wc.x, wc.y - 10, `-1 ${outcome.material}`, '#ffd166');
+      } else if (outcome.reason === 'no_material') {
+        this.showHint('Not enough material to repair');
+      } else if (outcome.reason === 'not_damaged') {
+        this.showHint('Already at full HP');
+      } else {
+        this.showHint('Can only repair placed structures');
+      }
+      return;
+    }
+
+    if (act.kind === 'throw') {
+      if (!hasItem(this.state.inventory, act.ammo, 1)) return this.showHint('Out of bombs');
+      if (this.player.attackCooldown() > 0) return;
+      this.player.triggerAttackCooldown(400);
+      removeItem(this.state.inventory, act.ammo, 1);
+      const aim = Projectile.aimVector({ x: this.player.x, y: this.player.y }, { x: worldX, y: worldY });
+      const spawn: ProjectileSpawn = {
+        x: this.player.x + aim.dx * TILE_SIZE * 0.3,
+        y: this.player.y + aim.dy * TILE_SIZE * 0.3,
+        dx: aim.dx,
+        dy: aim.dy,
+        damage: BOMB_DAMAGE,
+        owner: 'player',
+        kind: 'bomb',
+        onBombExplode: (tx, ty) => this.resolveBombExplosion(tx, ty),
+      };
+      this.projectiles.push(new Projectile(this, this.world, spawn));
+      sounds.click();
+      return;
+    }
+
     if (act.kind === 'place') {
       if (dist > PLAYER_REACH_TILES) return;
       const t = this.world.getTileAt(tp.x, tp.y);
@@ -664,12 +724,38 @@ export class GameScene extends Phaser.Scene {
       this.world.placeTile(tp.x, tp.y, act.tile);
       sounds.place();
       this.state.stats.tilesPlaced += 1;
-      if (act.tile === TileType.TurretBasic || act.tile === TileType.TurretAdvanced) {
-        const kind = act.tile === TileType.TurretAdvanced ? 'advanced' : 'basic';
+      if (act.tile === TileType.TurretBasic || act.tile === TileType.TurretAdvanced || act.tile === TileType.TurretFlame) {
+        const kind =
+          act.tile === TileType.TurretAdvanced ? 'advanced' :
+          act.tile === TileType.TurretFlame ? 'flame' :
+          'basic';
         const barrel = makeTurretBarrel(this, tp.x, tp.y, kind);
         this.turrets.push({ tileX: tp.x, tileY: tp.y, kind, cooldownMs: 0, barrel });
       }
     }
+  }
+
+  private resolveBombExplosion(tx: number, ty: number): void {
+    const wc = this.world.tileToWorldCenter(tx, ty);
+    this.cameras.main.shake(180, 0.006);
+    this.effects.burst(wc.x, wc.y, 0xff4d1a, 30, 200, 700, 1.8);
+    this.effects.burst(wc.x, wc.y, 0xffcc66, 18, 160, 600, 1.4);
+    sounds.bossRoar();
+    const victims: BombVictim[] = this.zombies.map((z) => ({
+      get alive() { return z.alive; },
+      get x() { return z.sprite.x; },
+      get y() { return z.sprite.y; },
+      takeDamage: (amount: number): boolean => {
+        const ax = z.sprite.x;
+        const ay = z.sprite.y;
+        const died = z.takeDamage(amount);
+        this.effects.bloodBurst(ax, ay, 0x8a1a1a);
+        this.popNumber(ax, ay - 18, `-${amount}`, '#ffaa55');
+        if (died) this.onZombieKilled(ax, ay, z.variant);
+        return died;
+      },
+    }));
+    bombExplosion(this.world, tx, ty, BOMB_RADIUS, BOMB_DAMAGE, victims);
   }
 
   private regenAccumMs = 0;
@@ -710,6 +796,7 @@ export class GameScene extends Phaser.Scene {
 
     this.cycle.tick(delta);
     this.worldEvents.update(delta);
+    this.dynamicTerrain.update(delta);
 
     // Slow HP regen during day (faster near campfire)
     if (this.state.phase === 'day' && this.state.playerHp < this.state.playerMaxHp) {
@@ -814,7 +901,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.turrets = this.turrets.filter((t) => {
       const tile = this.world.getTileAt(t.tileX, t.tileY);
-      if (!tile || (tile.type !== TileType.TurretBasic && tile.type !== TileType.TurretAdvanced)) {
+      const ok = tile && (tile.type === TileType.TurretBasic || tile.type === TileType.TurretAdvanced || tile.type === TileType.TurretFlame);
+      if (!ok) {
         t.barrel.destroy();
         return false;
       }
@@ -825,19 +913,34 @@ export class GameScene extends Phaser.Scene {
     for (const pr of this.projectiles) {
       pr.update(delta);
       if (!pr.alive) continue;
+      // Bombs resolve via fuse, not collision.
+      if (pr.kind === 'bomb') continue;
+      const hitSet = new Set<Zombie>();
       for (const z of this.zombies) {
         if (!z.alive) continue;
         const d = Math.hypot(z.sprite.x - pr.sprite.x, z.sprite.y - pr.sprite.y);
-        // Hit radius scales with zombie visual size (armored zombies are bigger)
         const hitR = Math.max(12, z.sprite.displayWidth * 0.45);
-        if (d < hitR) {
-          this.effects.bloodBurst(z.sprite.x, z.sprite.y, 0x8a1a1a);
-          this.popNumber(z.sprite.x, z.sprite.y - 18, `-${pr.damage}`, pr.kind === 'bullet' ? '#ffaa33' : '#ddddff');
+        if (d < hitR) hitSet.add(z);
+      }
+      if (hitSet.size === 0) continue;
+      if (pr.kind === 'flame') {
+        // Piercing: damage multiple zombies, consume pierce budget.
+        for (const z of hitSet) {
+          if (pr.pierceBudget <= 0) break;
+          pr.pierceBudget -= 1;
+          this.effects.bloodBurst(z.sprite.x, z.sprite.y, 0xff8030);
+          this.popNumber(z.sprite.x, z.sprite.y - 18, `-${pr.damage}`, '#ffcc33');
           sounds.zombieHit();
           if (z.takeDamage(pr.damage)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
-          pr.destroy();
-          break;
         }
+        if (pr.pierceBudget <= 0) pr.destroy();
+      } else {
+        const z = hitSet.values().next().value!;
+        this.effects.bloodBurst(z.sprite.x, z.sprite.y, 0x8a1a1a);
+        this.popNumber(z.sprite.x, z.sprite.y - 18, `-${pr.damage}`, pr.kind === 'bullet' ? '#ffaa33' : '#ddddff');
+        sounds.zombieHit();
+        if (z.takeDamage(pr.damage)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
+        pr.destroy();
       }
     }
     this.projectiles = this.projectiles.filter((p) => p.alive);
@@ -912,28 +1015,31 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Pick a random tile on the frontier of the revealed region for a zombie spawn. */
+  private pickSpawnEdge(): { tx: number; ty: number } {
+    const b = this.state.revealedBounds;
+    const edge = Math.floor(Math.random() * 4);
+    let tx = b.xMin;
+    let ty = b.yMin;
+    const randRangeX = () => b.xMin + Math.floor(Math.random() * (b.xMax - b.xMin + 1));
+    const randRangeY = () => b.yMin + Math.floor(Math.random() * (b.yMax - b.yMin + 1));
+    if (edge === 0) { tx = randRangeX(); ty = Math.max(1, b.yMin); }
+    if (edge === 1) { tx = randRangeX(); ty = Math.min(WORLD_HEIGHT - 2, b.yMax); }
+    if (edge === 2) { tx = Math.max(1, b.xMin); ty = randRangeY(); }
+    if (edge === 3) { tx = Math.min(WORLD_WIDTH - 2, b.xMax); ty = randRangeY(); }
+    return { tx, ty };
+  }
+
   private spawnZombie(): void {
     this.nightSpawned += 1;
-    const edge = Math.floor(Math.random() * 4);
-    let tx = 1;
-    let ty = 1;
-    if (edge === 0) { tx = Math.floor(Math.random() * WORLD_WIDTH); ty = 1; }
-    if (edge === 1) { tx = Math.floor(Math.random() * WORLD_WIDTH); ty = WORLD_HEIGHT - 2; }
-    if (edge === 2) { tx = 1; ty = Math.floor(Math.random() * WORLD_HEIGHT); }
-    if (edge === 3) { tx = WORLD_WIDTH - 2; ty = Math.floor(Math.random() * WORLD_HEIGHT); }
+    const { tx, ty } = this.pickSpawnEdge();
     const wc = this.world.tileToWorldCenter(tx, ty);
     this.zombies.push(new Zombie(this, this.world, wc.x, wc.y, specForNight(this.state.nightNumber)));
     this.effects.burst(wc.x, wc.y, 0x884488, 6, 60, 300, 0.8);
   }
 
   private spawnBoss(): void {
-    const edge = Math.floor(Math.random() * 4);
-    let tx = 1;
-    let ty = 1;
-    if (edge === 0) { tx = Math.floor(Math.random() * WORLD_WIDTH); ty = 1; }
-    if (edge === 1) { tx = Math.floor(Math.random() * WORLD_WIDTH); ty = WORLD_HEIGHT - 2; }
-    if (edge === 2) { tx = 1; ty = Math.floor(Math.random() * WORLD_HEIGHT); }
-    if (edge === 3) { tx = WORLD_WIDTH - 2; ty = Math.floor(Math.random() * WORLD_HEIGHT); }
+    const { tx, ty } = this.pickSpawnEdge();
     const wc = this.world.tileToWorldCenter(tx, ty);
     const boss = new Zombie(this, this.world, wc.x, wc.y, specForBoss(this.state.nightNumber));
     this.zombies.push(boss);
@@ -1137,6 +1243,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   saveRun(hintText = 'Game saved'): void {
+    // Finalize any in-progress mist-recession animation so the save captures
+    // a stable terrain snapshot.
+    this.dynamicTerrain?.flush();
     const ok = SaveLoad.save({
       state: this.state,
       tiles: this.world.tiles,

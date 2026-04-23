@@ -119,6 +119,7 @@ export class WorldEvents {
       const tile = this.deps.world.getTileAt(tx, ty);
       if (!tile) continue;
       if (tile.type === TileType.Water || tile.type === TileType.ShopNPC) continue;
+      if (!this.deps.world.isRevealed(tx, ty)) continue;
       const d = Math.hypot(tx - player.x, ty - player.y);
       if (d < 4) continue;
       this.queueMeteor(tx, ty, delayMs);
@@ -215,6 +216,7 @@ export class WorldEvents {
         const ny = src.y + dy;
         const t = this.deps.world.getTileAt(nx, ny);
         if (!t) continue;
+        if (!this.deps.world.isRevealed(nx, ny)) continue;
         if (t.type === TileType.Grass || t.type === TileType.Dirt || t.type === TileType.Sand || t.type === TileType.FlowerField) {
           this.deps.world.placeTile(nx, ny, TileType.Lava);
           // Little puff

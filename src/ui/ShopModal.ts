@@ -12,7 +12,12 @@ export interface ModalDeps {
   onChanged: () => void;
 }
 
-const INVENTORY_ORDER: MaterialId[] = ['wood', 'stone', 'iron', 'gold', 'arrow', 'bullet', 'lava', 'potion', 'food'];
+const INVENTORY_ORDER: MaterialId[] = [
+  'wood', 'stone', 'iron', 'gold',
+  'arrow', 'bullet', 'bomb',
+  'lava', 'potion', 'food',
+  'wallReinforced', 'turretFlame',
+];
 
 const MATERIAL_COLORS: Record<MaterialId, number> = {
   wood: 0x9c6a3f,
@@ -24,6 +29,9 @@ const MATERIAL_COLORS: Record<MaterialId, number> = {
   lava: 0xff4d1a,
   potion: 0xff66aa,
   food: 0xd58a4a,
+  bomb: 0x2a2a2a,
+  wallReinforced: 0x5a5a70,
+  turretFlame: 0xff8030,
 };
 
 export class Modal {

@@ -1,6 +1,12 @@
 export const TILE_SIZE = 32;
-export const WORLD_WIDTH = 60;
-export const WORLD_HEIGHT = 60;
+export const WORLD_WIDTH = 100;
+export const WORLD_HEIGHT = 100;
+
+// Mist barrier — the playable region starts as a centered square and expands outward.
+export const INITIAL_REVEAL_HALF_SIZE = 20;
+export const REVEAL_EXPAND_DAYS = 2;
+export const REVEAL_RING_TILES = 3;
+export const REVEAL_TILE_INTERVAL_MS = 40;
 
 export const DAY_DURATION_MS = 3 * 60 * 1000;
 export const NIGHT_DURATION_MS = 2 * 60 * 1000;
@@ -26,7 +32,20 @@ export const TURRET_ADVANCED_RANGE = 6 * TILE_SIZE;
 export const TURRET_ADVANCED_FIRE_MS = 500;
 export const TURRET_ADVANCED_DAMAGE = 10;
 
+export const TURRET_FLAME_RANGE = 3 * TILE_SIZE;
+export const TURRET_FLAME_FIRE_MS = 600;
+export const TURRET_FLAME_DAMAGE = 8;
+
 export const PROJECTILE_SPEED = 360;
+
+// Engineering
+export const BOMB_DAMAGE = 60;
+export const BOMB_RADIUS = 2;
+export const BOMB_FUSE_MS = 1000;
+export const BOMB_THROW_SPEED = 280;
+
+// Brute-zombie spawn chance, indexed by (nightNumber - 1). Values beyond the array use the last entry.
+export const BRUTE_CHANCE_BY_NIGHT = [0, 0, 0, 0, 0.15, 0.15, 0.15, 0.30];
 
 export const LAVA_DPS = 30;
 
@@ -53,6 +72,10 @@ export const COLORS = {
   chest: 0x6b4423,
   turret_basic: 0x4d7fff,
   turret_advanced: 0x8040ff,
+  turret_flame: 0xff8030,
+  wall_reinforced: 0x5a5a70,
+  mist: 0x1a1d26,
+  bomb: 0x2a2a2a,
   shop_npc: 0xffcc00,
   player: 0xff4d4d,
   zombie: 0x3d7a3d,

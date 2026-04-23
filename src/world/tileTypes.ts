@@ -28,9 +28,15 @@ export const enum TileType {
   Volcano,
   Crater,
   Bridge,
+  WallReinforced,
+  TurretFlame,
 }
 
-export type MaterialId = 'wood' | 'stone' | 'iron' | 'gold' | 'arrow' | 'bullet' | 'lava' | 'potion' | 'food';
+export type MaterialId =
+  | 'wood' | 'stone' | 'iron' | 'gold'
+  | 'arrow' | 'bullet'
+  | 'lava' | 'potion' | 'food'
+  | 'bomb' | 'wallReinforced' | 'turretFlame';
 
 export type ToolTier = 0 | 1 | 2 | 3;
 
@@ -81,6 +87,9 @@ export const TILE_SPECS: Record<TileType, TileSpec> = {
   [TileType.Volcano]: { walkable: false, opaque: true, baseHp: 300, pickaxeTier: 2, dropMaterial: 'gold', dropCount: 8, tintColor: C(0xb01a00) },
   [TileType.Crater]: { walkable: true, opaque: false, baseHp: 0, pickaxeTier: 0, tintColor: C(0x3a2410) },
   [TileType.Bridge]: { walkable: true, opaque: false, baseHp: 8, pickaxeTier: 0, dropMaterial: 'wood', dropCount: 1, tintColor: C(0x9c6a3f) },
+
+  [TileType.WallReinforced]: { walkable: false, opaque: true, baseHp: 320, pickaxeTier: 2, dropMaterial: 'iron', dropCount: 1, tintColor: C(0x5a5a70) },
+  [TileType.TurretFlame]: { walkable: false, opaque: true, baseHp: 50, pickaxeTier: 1, dropMaterial: 'iron', dropCount: 1, tintColor: C(0xff8030) },
 };
 
 export function isPlaceableGround(type: TileType): boolean {

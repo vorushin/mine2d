@@ -5,6 +5,8 @@ export type HotbarAction =
   | { kind: 'mine'; label: string; name: string; description: string; color: number; requires?: 'pickaxe' }
   | { kind: 'melee'; label: string; name: string; description: string; color: number }
   | { kind: 'ranged'; label: string; name: string; description: string; color: number; ammo: 'arrow' | 'bullet'; weapon: 'bow' | 'pistol' }
+  | { kind: 'hammer'; label: string; name: string; description: string; color: number }
+  | { kind: 'throw'; label: string; name: string; description: string; color: number; ammo: 'bomb' }
   | {
       kind: 'place';
       label: string;
@@ -12,7 +14,7 @@ export type HotbarAction =
       description: string;
       color: number;
       tile: TileType;
-      cost: { material: 'wood' | 'stone' | 'iron' | 'lava'; count: number }[];
+      cost: { material: 'wood' | 'stone' | 'iron' | 'lava' | 'wallReinforced' | 'turretFlame'; count: number }[];
       onto?: 'ground' | 'water';
     };
 
@@ -132,6 +134,39 @@ export const HOTBAR: HotbarAction[] = [
     cost: [{ material: 'wood', count: 2 }],
     onto: 'water',
   },
+  {
+    kind: 'place',
+    label: 'Wall R',
+    name: 'Reinforced Wall',
+    description: 'Highest-HP wall. Craft 4 at a bench: 2 iron + 3 stone. Consumes a placement token.',
+    color: 0x5a5a70,
+    tile: TileType.WallReinforced,
+    cost: [{ material: 'wallReinforced', count: 1 }],
+  },
+  {
+    kind: 'place',
+    label: 'T Flame',
+    name: 'Flame Turret',
+    description: 'Short-range piercing turret. Craft at a bench first. Consumes a placement token.',
+    color: 0xff8030,
+    tile: TileType.TurretFlame,
+    cost: [{ material: 'turretFlame', count: 1 }],
+  },
+  {
+    kind: 'hammer',
+    label: 'Hammer',
+    name: 'Repair Hammer',
+    description: 'Click a damaged structure to restore it to full HP. Costs 1 unit of the tile’s own material.',
+    color: 0xc0c0d0,
+  },
+  {
+    kind: 'throw',
+    label: 'Bomb',
+    name: 'Bomb',
+    description: 'Click to throw toward cursor; explodes after a short fuse. Big AoE damage.',
+    color: 0x2a2a2a,
+    ammo: 'bomb',
+  },
 ];
 
 export function hotbarAvailable(slot: number, state: GameState): boolean {
@@ -145,6 +180,10 @@ export function hotbarAvailable(slot: number, state: GameState): boolean {
     case 'ranged':
       if (act.weapon === 'bow' && !state.hasBow) return false;
       if (act.weapon === 'pistol' && !state.hasPistol) return false;
+      return hasItem(state.inventory, act.ammo, 1);
+    case 'hammer':
+      return state.hasHammer;
+    case 'throw':
       return hasItem(state.inventory, act.ammo, 1);
     case 'place':
       return act.cost.every((c) => hasItem(state.inventory, c.material, c.count));

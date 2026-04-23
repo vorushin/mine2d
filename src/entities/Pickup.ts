@@ -11,6 +11,9 @@ const COLORS: Record<MaterialId, number> = {
   lava: 0xff4d1a,
   potion: 0xff66aa,
   food: 0xd58a4a,
+  bomb: 0x2a2a2a,
+  wallReinforced: 0x5a5a70,
+  turretFlame: 0xff8030,
 };
 
 const LETTERS: Record<MaterialId, string> = {
@@ -23,6 +26,9 @@ const LETTERS: Record<MaterialId, string> = {
   lava: 'L',
   potion: 'P',
   food: 'F',
+  bomb: 'X',
+  wallReinforced: 'R',
+  turretFlame: 'T',
 };
 
 /**
