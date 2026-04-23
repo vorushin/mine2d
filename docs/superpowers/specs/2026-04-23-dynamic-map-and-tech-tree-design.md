@@ -1,8 +1,13 @@
 # Dynamic Map Growth & Engineering Tech — Design Spec
 
 **Date:** 2026-04-23
-**Status:** Approved for planning
+**Status:** Partially shipped — see Revision history
 **Supersedes:** n/a — extends the v1 design in `2026-04-21-mine2d-design.md`.
+
+## Revision history
+
+- **2026-04-23** — initial spec approved: growing map via mist barrier + engineering tech + brute zombie.
+- **2026-04-23 (post-playtest)** — mist barrier removed. It wasn't fun: the initial 40×40 region felt too confined, and opaque mist killed exploration vibes. The world stays at 100×100 but is fully visible and accessible from day 1. Engineering tech and brute zombie stay shipped as designed. Feature 1 of this spec is therefore obsolete; Features 2 and 3 remain authoritative.
 
 ## Overview
 

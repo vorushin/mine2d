@@ -15,7 +15,6 @@ import { SaveLoad, SaveSnapshot } from '../systems/SaveLoad';
 import { sounds } from '../systems/Sound';
 import { Effects } from '../gfx/Effects';
 import { WorldEvents } from '../systems/WorldEvents';
-import { DynamicTerrain } from '../systems/DynamicTerrain';
 import { useHammer, bombExplosion, BombVictim } from '../systems/Engineering';
 import { GameState, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
@@ -29,7 +28,6 @@ export class GameScene extends Phaser.Scene {
   cycle!: DayNightCycle;
   effects!: Effects;
   worldEvents!: WorldEvents;
-  dynamicTerrain!: DynamicTerrain;
   zombies: Zombie[] = [];
   projectiles: Projectile[] = [];
   turrets: TurretInstance[] = [];
@@ -98,17 +96,6 @@ export class GameScene extends Phaser.Scene {
     this.drawDecor(seed);
 
     this.effects = new Effects(this);
-
-    // Dynamic terrain owns the mist barrier + reveal animation. Constructed
-    // before WorldEvents so the world predicate is set and meteors/lava
-    // spread only touch revealed tiles.
-    this.dynamicTerrain = new DynamicTerrain({
-      scene: this,
-      world: this.world,
-      effects: this.effects,
-      state: this.state,
-    });
-
     this.worldEvents = new WorldEvents({
       scene: this,
       world: this.world,
@@ -227,12 +214,7 @@ export class GameScene extends Phaser.Scene {
       if (phase === 'day') {
         this.showHint('Day — mine, build, craft');
         this.worldEvents.onDayStart();
-        this.dynamicTerrain.onDayStart();
       }
-    });
-
-    this.events.on('terrain_revealed', () => {
-      this.showHint('🌫 The mist recedes — new land is accessible');
     });
 
     this.events.on('volcano_spawned', (tx: number, ty: number) => {
@@ -796,7 +778,6 @@ export class GameScene extends Phaser.Scene {
 
     this.cycle.tick(delta);
     this.worldEvents.update(delta);
-    this.dynamicTerrain.update(delta);
 
     // Slow HP regen during day (faster near campfire)
     if (this.state.phase === 'day' && this.state.playerHp < this.state.playerMaxHp) {
@@ -1015,18 +996,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Pick a random tile on the frontier of the revealed region for a zombie spawn. */
   private pickSpawnEdge(): { tx: number; ty: number } {
-    const b = this.state.revealedBounds;
     const edge = Math.floor(Math.random() * 4);
-    let tx = b.xMin;
-    let ty = b.yMin;
-    const randRangeX = () => b.xMin + Math.floor(Math.random() * (b.xMax - b.xMin + 1));
-    const randRangeY = () => b.yMin + Math.floor(Math.random() * (b.yMax - b.yMin + 1));
-    if (edge === 0) { tx = randRangeX(); ty = Math.max(1, b.yMin); }
-    if (edge === 1) { tx = randRangeX(); ty = Math.min(WORLD_HEIGHT - 2, b.yMax); }
-    if (edge === 2) { tx = Math.max(1, b.xMin); ty = randRangeY(); }
-    if (edge === 3) { tx = Math.min(WORLD_WIDTH - 2, b.xMax); ty = randRangeY(); }
+    let tx = 1;
+    let ty = 1;
+    if (edge === 0) { tx = Math.floor(Math.random() * WORLD_WIDTH); ty = 1; }
+    if (edge === 1) { tx = Math.floor(Math.random() * WORLD_WIDTH); ty = WORLD_HEIGHT - 2; }
+    if (edge === 2) { tx = 1; ty = Math.floor(Math.random() * WORLD_HEIGHT); }
+    if (edge === 3) { tx = WORLD_WIDTH - 2; ty = Math.floor(Math.random() * WORLD_HEIGHT); }
     return { tx, ty };
   }
 
@@ -1243,9 +1220,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   saveRun(hintText = 'Game saved'): void {
-    // Finalize any in-progress mist-recession animation so the save captures
-    // a stable terrain snapshot.
-    this.dynamicTerrain?.flush();
     const ok = SaveLoad.save({
       state: this.state,
       tiles: this.world.tiles,

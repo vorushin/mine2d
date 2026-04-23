@@ -1,5 +1,4 @@
 import { MaterialId } from '../world/tileTypes';
-import { INITIAL_REVEAL_HALF_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from '../config';
 
 export interface Inventory {
   counts: Partial<Record<MaterialId, number>>;
@@ -36,13 +35,6 @@ export interface RunStats {
   goldEarned: number;
 }
 
-export interface RevealedBounds {
-  xMin: number;
-  yMin: number;
-  xMax: number;
-  yMax: number; // inclusive
-}
-
 export interface GameState {
   nightNumber: number;
   score: number;
@@ -59,24 +51,6 @@ export interface GameState {
   hotbarSlot: number;
   running: boolean;
   stats: RunStats;
-  revealedBounds: RevealedBounds;
-  daysUntilNextExpansion: number;
-}
-
-export function initialRevealedBounds(): RevealedBounds {
-  const cx = Math.floor(WORLD_WIDTH / 2);
-  const cy = Math.floor(WORLD_HEIGHT / 2);
-  const h = INITIAL_REVEAL_HALF_SIZE;
-  return {
-    xMin: Math.max(0, cx - h),
-    yMin: Math.max(0, cy - h),
-    xMax: Math.min(WORLD_WIDTH - 1, cx + h - 1),
-    yMax: Math.min(WORLD_HEIGHT - 1, cy + h - 1),
-  };
-}
-
-export function isInBounds(b: RevealedBounds, x: number, y: number): boolean {
-  return x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax;
 }
 
 export function makeGameState(): GameState {
@@ -96,7 +70,5 @@ export function makeGameState(): GameState {
     hotbarSlot: 0,
     running: true,
     stats: { zombiesKilled: 0, tilesMined: 0, tilesPlaced: 0, goldEarned: 0 },
-    revealedBounds: initialRevealedBounds(),
-    daysUntilNextExpansion: 2,
   };
 }

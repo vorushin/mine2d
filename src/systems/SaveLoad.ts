@@ -1,4 +1,4 @@
-import { GameState, RevealedBounds, RunStats, initialRevealedBounds, makeGameState } from '../state/GameState';
+import { GameState, RunStats, makeGameState } from '../state/GameState';
 import { Tile } from '../world/generate';
 import { TileType, TILE_SPECS, MaterialId } from '../world/tileTypes';
 import { WORLD_HEIGHT, WORLD_WIDTH } from '../config';
@@ -92,10 +92,6 @@ export interface SaveData {
     hasHammer: boolean;
     hotbarSlot: number;
     inventory: Record<string, number>;
-  };
-  terrain?: {
-    revealedBounds: RevealedBounds;
-    daysUntilNextExpansion: number;
   };
   cycle: {
     phase: GameState['phase'];
@@ -191,10 +187,6 @@ function serialize(snap: SaveSnapshot): SaveData {
       hasHammer: snap.state.hasHammer,
       hotbarSlot: snap.state.hotbarSlot,
       inventory: { ...snap.state.inventory.counts } as Record<string, number>,
-    },
-    terrain: {
-      revealedBounds: snap.state.revealedBounds,
-      daysUntilNextExpansion: snap.state.daysUntilNextExpansion,
     },
     cycle: {
       phase: snap.state.phase,
@@ -304,22 +296,6 @@ function deserialize(raw: unknown): SaveSnapshot | null {
     goldEarned: Math.max(0, intOr(stats.goldEarned, 0)),
   };
   state.running = true;
-
-  // Terrain reveal bounds (optional — older saves default to the initial square)
-  const terrain = (data.terrain ?? {}) as Partial<NonNullable<SaveData['terrain']>>;
-  if (terrain.revealedBounds) {
-    const rb = terrain.revealedBounds as Partial<RevealedBounds>;
-    const init = initialRevealedBounds();
-    state.revealedBounds = {
-      xMin: Math.max(0, Math.min(WORLD_WIDTH - 1, intOr(rb.xMin, init.xMin))),
-      yMin: Math.max(0, Math.min(WORLD_HEIGHT - 1, intOr(rb.yMin, init.yMin))),
-      xMax: Math.max(0, Math.min(WORLD_WIDTH - 1, intOr(rb.xMax, init.xMax))),
-      yMax: Math.max(0, Math.min(WORLD_HEIGHT - 1, intOr(rb.yMax, init.yMax))),
-    };
-  } else {
-    state.revealedBounds = initialRevealedBounds();
-  }
-  state.daysUntilNextExpansion = Math.max(0, intOr(terrain.daysUntilNextExpansion, 2));
 
   // Player world position; if absent, use spawn.
   const playerWorldPos = {

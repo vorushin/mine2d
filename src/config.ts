@@ -2,12 +2,6 @@ export const TILE_SIZE = 32;
 export const WORLD_WIDTH = 100;
 export const WORLD_HEIGHT = 100;
 
-// Mist barrier — the playable region starts as a centered square and expands outward.
-export const INITIAL_REVEAL_HALF_SIZE = 20;
-export const REVEAL_EXPAND_DAYS = 2;
-export const REVEAL_RING_TILES = 3;
-export const REVEAL_TILE_INTERVAL_MS = 40;
-
 export const DAY_DURATION_MS = 3 * 60 * 1000;
 export const NIGHT_DURATION_MS = 2 * 60 * 1000;
 export const DUSK_DURATION_MS = 5 * 1000;
@@ -74,7 +68,6 @@ export const COLORS = {
   turret_advanced: 0x8040ff,
   turret_flame: 0xff8030,
   wall_reinforced: 0x5a5a70,
-  mist: 0x1a1d26,
   bomb: 0x2a2a2a,
   shop_npc: 0xffcc00,
   player: 0xff4d4d,
