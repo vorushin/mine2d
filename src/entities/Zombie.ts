@@ -76,83 +76,475 @@ export function specForBoss(night: number): ZombieSpec {
   };
 }
 
+/**
+ * Zombie textures. Each variant has a distinct silhouette and palette
+ * so the player can triage threats at a glance. Drawn procedurally with
+ * Phaser Graphics at preload time.
+ */
 export function generateZombieTextures(scene: Phaser.Scene): void {
-  const variants: { key: string; body: number; head: number; eye: number; accent?: number; armored?: boolean }[] = [
-    { key: 'zombie_normal', body: 0x3d7a3d, head: 0x2f5e2f, eye: 0xffdb3d },
-    { key: 'zombie_fast', body: 0xa8d65c, head: 0x72a03b, eye: 0xff5050 },
-    { key: 'zombie_armored', body: 0x6f4a22, head: 0x553716, eye: 0xff9030, accent: 0x8a8a8a, armored: true },
-    { key: 'zombie_brute', body: 0x8a2030, head: 0x5a1018, eye: 0xffe030, accent: 0x2a2a2a, armored: true },
-  ];
+  drawNormalZombie(scene);
+  drawFastZombie(scene);
+  drawArmoredZombie(scene);
+  drawBruteZombie(scene);
+  drawBossZombie(scene);
+}
 
-  for (const v of variants) {
-    if (scene.textures.exists(v.key)) continue;
-    const g = scene.add.graphics();
-    const s = 22;
-    g.fillStyle(v.body, 1);
-    g.fillRect(4, 9, s - 8, 11);
-    g.fillStyle(v.head, 1);
-    g.fillRect(6, 2, s - 12, 8);
-    g.fillStyle(v.body, 1);
-    g.fillRect(0, 11, 4, 6);
-    g.fillRect(s - 4, 11, 4, 6);
-    g.fillRect(6, 20, 4, 5);
-    g.fillRect(s - 10, 20, 4, 5);
-    g.fillStyle(0x1a1a1a, 1);
-    g.fillRect(5, 24, 6, 2);
-    g.fillRect(s - 11, 24, 6, 2);
-    g.fillStyle(v.eye, 1);
-    g.fillRect(8, 5, 2, 2);
-    g.fillRect(s - 10, 5, 2, 2);
-    g.fillStyle(0x8a1a1a, 1);
-    g.fillRect(10, 8, 2, 1);
-    g.lineStyle(1, 0x0a0a0a, 0.9);
-    g.strokeRect(4, 9, s - 8, 11);
-    g.strokeRect(6, 2, s - 12, 8);
-    g.fillStyle(v.head, 1);
-    g.fillRect(5, 16, s - 10, 1);
-    if (v.armored && v.accent) {
-      g.fillStyle(v.accent, 1);
-      g.fillRect(6, 11, s - 12, 4);
-      g.lineStyle(1, 0x000000, 0.8);
-      g.strokeRect(6, 11, s - 12, 4);
-    }
-    g.generateTexture(v.key, s, 26);
-    g.destroy();
+// --- Normal: slumped shambler — mottled rotting green, hanging jaw, one dead eye --------
+
+function drawNormalZombie(scene: Phaser.Scene): void {
+  const key = 'zombie_normal';
+  if (scene.textures.exists(key)) return;
+  const W = 22, H = 28;
+  const g = scene.add.graphics();
+
+  // Shadow under feet is drawn at runtime — start with pure transparent.
+  const skin = 0x4a8f4a;
+  const skinDark = 0x2d5c2d;
+  const skinPale = 0x6dbf6d; // patches of lighter decay
+  const shirt = 0x5a3820;
+  const shirtTear = 0x8a5030;
+
+  // Hair — scruffy dark patch on top
+  g.fillStyle(0x1a2a1a, 1);
+  g.fillRect(7, 1, 8, 2);
+  g.fillRect(6, 2, 2, 1); g.fillRect(14, 2, 2, 1);
+
+  // Head
+  g.fillStyle(skin, 1); g.fillRect(6, 3, 10, 9);
+  // Head lowlight (bottom edge + right cheek)
+  g.fillStyle(skinDark, 1);
+  g.fillRect(6, 11, 10, 1); g.fillRect(14, 4, 2, 7);
+  // Head highlight (left cheek) + decay patch
+  g.fillStyle(skinPale, 1);
+  g.fillRect(6, 4, 1, 4); g.fillRect(11, 8, 2, 1);
+
+  // Eyes — one glowing, one hollow socket
+  g.fillStyle(0x000000, 1); g.fillRect(8, 6, 2, 2);      // hollow left
+  g.fillStyle(0xffdb3d, 1); g.fillRect(12, 6, 2, 2);      // glowing right
+  g.fillStyle(0xffffff, 1); g.fillRect(13, 6, 1, 1);      // highlight
+  // Stitched scar across cheek
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(9, 9, 1, 1); g.fillRect(11, 9, 1, 1);
+
+  // Mouth: gaping, drooling
+  g.fillStyle(0x1a0505, 1); g.fillRect(9, 10, 4, 2);
+  g.fillStyle(0x8a1a1a, 1); g.fillRect(10, 11, 2, 1);
+  // Drool drip
+  g.fillStyle(0x7ecf7e, 1); g.fillRect(11, 12, 1, 1);
+
+  // Body — torn shirt with vertical rips showing rotten flesh
+  g.fillStyle(shirt, 1); g.fillRect(4, 12, 14, 9);
+  g.fillStyle(shirtTear, 1); g.fillRect(4, 12, 14, 1); // shirt top seam
+  // Rips revealing skin
+  g.fillStyle(skinPale, 1);
+  g.fillRect(8, 14, 1, 5); g.fillRect(13, 15, 1, 4);
+  // Exposed ribs hint (small bones)
+  g.fillStyle(0xeeeed8, 1);
+  g.fillRect(8, 16, 1, 1); g.fillRect(13, 17, 1, 1);
+
+  // Arms — left hangs slightly lower than right (dead weight)
+  g.fillStyle(skin, 1);
+  g.fillRect(0, 13, 4, 8);  // left arm, longer/lower
+  g.fillRect(18, 13, 4, 7); // right arm
+  g.fillStyle(skinDark, 1);
+  g.fillRect(0, 20, 4, 1); g.fillRect(18, 19, 4, 1);
+  // Fingers (claws) on left
+  g.fillStyle(0x2d5c2d, 1);
+  g.fillRect(1, 21, 1, 1); g.fillRect(3, 21, 1, 1);
+
+  // Legs — tattered pants
+  g.fillStyle(0x3a2010, 1); g.fillRect(6, 21, 4, 5);
+  g.fillRect(12, 21, 4, 5);
+  // Jagged pant bottoms
+  g.fillStyle(skinDark, 1);
+  g.fillRect(7, 25, 1, 1); g.fillRect(9, 25, 1, 1);
+  g.fillRect(13, 25, 1, 1); g.fillRect(15, 25, 1, 1);
+  // Feet (bare, dirty)
+  g.fillStyle(skinDark, 1); g.fillRect(6, 26, 4, 2); g.fillRect(12, 26, 4, 2);
+  g.fillStyle(0x0a0a0a, 1); g.fillRect(6, 27, 4, 1); g.fillRect(12, 27, 4, 1);
+
+  // Body outline
+  outlineRect(g, 6, 3, 10, 9, 0x0a0a0a);
+  outlineRect(g, 4, 12, 14, 9, 0x0a0a0a);
+
+  g.generateTexture(key, W, H);
+  g.destroy();
+}
+
+// --- Fast: feral lean runner, blood-spattered, red eyes, claws ---------------------------
+
+function drawFastZombie(scene: Phaser.Scene): void {
+  const key = 'zombie_fast';
+  if (scene.textures.exists(key)) return;
+  const W = 22, H = 28;
+  const g = scene.add.graphics();
+
+  const skin = 0xaad65c;
+  const skinDark = 0x6b9830;
+  const skinPale = 0xccec88;
+
+  // Wild hair spikes (tuft on top)
+  g.fillStyle(0x2a1a0a, 1);
+  g.fillRect(7, 0, 2, 2); g.fillRect(11, 0, 2, 2); g.fillRect(9, 1, 2, 1);
+  g.fillRect(6, 2, 10, 1);
+
+  // Head (smaller, leaner)
+  g.fillStyle(skin, 1); g.fillRect(7, 3, 8, 8);
+  g.fillStyle(skinDark, 1); g.fillRect(7, 10, 8, 1); g.fillRect(13, 4, 2, 6);
+  g.fillStyle(skinPale, 1); g.fillRect(7, 4, 1, 3);
+
+  // Eyes — both red and crazed
+  g.fillStyle(0xff3030, 1); g.fillRect(8, 5, 2, 2); g.fillRect(12, 5, 2, 2);
+  g.fillStyle(0xffaa80, 1); g.fillRect(9, 5, 1, 1); g.fillRect(13, 5, 1, 1);
+
+  // Fanged open maw
+  g.fillStyle(0x1a0505, 1); g.fillRect(9, 8, 4, 3);
+  g.fillStyle(0xf0f0d8, 1);
+  // Fangs (vertical slashes)
+  g.fillRect(9, 8, 1, 2); g.fillRect(12, 8, 1, 2);
+  g.fillRect(10, 10, 1, 1); g.fillRect(11, 10, 1, 1);
+  // Blood around mouth
+  g.fillStyle(0x8a1a1a, 1);
+  g.fillRect(8, 11, 1, 1); g.fillRect(13, 11, 1, 1);
+
+  // Lean torso
+  g.fillStyle(skin, 1); g.fillRect(6, 11, 10, 8);
+  // Shadow underside
+  g.fillStyle(skinDark, 1); g.fillRect(6, 18, 10, 1);
+  // Rib hints
+  g.fillStyle(skinPale, 1);
+  g.fillRect(7, 13, 1, 1); g.fillRect(14, 13, 1, 1);
+  g.fillRect(7, 16, 1, 1); g.fillRect(14, 16, 1, 1);
+  // Blood splatter on chest
+  g.fillStyle(0x8a1a1a, 1);
+  g.fillRect(10, 14, 2, 2); g.fillRect(11, 15, 1, 1); g.fillRect(9, 16, 1, 1);
+
+  // Long clawed arms
+  g.fillStyle(skin, 1);
+  g.fillRect(2, 13, 4, 6); g.fillRect(16, 13, 4, 6);
+  g.fillStyle(skinDark, 1);
+  g.fillRect(2, 18, 4, 1); g.fillRect(16, 18, 4, 1);
+  // Claws
+  g.fillStyle(0xe8e8e0, 1);
+  g.fillRect(1, 19, 1, 2); g.fillRect(3, 19, 1, 2); g.fillRect(5, 19, 1, 2);
+  g.fillRect(16, 19, 1, 2); g.fillRect(18, 19, 1, 2); g.fillRect(20, 19, 1, 2);
+
+  // Legs — lean
+  g.fillStyle(0x3a2010, 1);
+  g.fillRect(7, 19, 3, 6); g.fillRect(12, 19, 3, 6);
+  // Feet — bare clawed
+  g.fillStyle(skinDark, 1);
+  g.fillRect(6, 25, 4, 2); g.fillRect(12, 25, 4, 2);
+  g.fillStyle(0xe8e8e0, 1);
+  g.fillRect(6, 27, 1, 1); g.fillRect(9, 27, 1, 1);
+  g.fillRect(12, 27, 1, 1); g.fillRect(15, 27, 1, 1);
+
+  outlineRect(g, 7, 3, 8, 8, 0x0a0a0a);
+  outlineRect(g, 6, 11, 10, 8, 0x0a0a0a);
+
+  g.generateTexture(key, W, H);
+  g.destroy();
+}
+
+// --- Armored: steel-helmeted rotted knight, hazard cross ---------------------------------
+
+function drawArmoredZombie(scene: Phaser.Scene): void {
+  const key = 'zombie_armored';
+  if (scene.textures.exists(key)) return;
+  const W = 24, H = 28;
+  const g = scene.add.graphics();
+
+  const skin = 0x7a9f4a;
+  const steel = 0x8a8a90;
+  const steelDark = 0x505058;
+  const steelLit = 0xaaabb4;
+  const rust = 0x7a3a20;
+
+  // Helmet dome
+  g.fillStyle(steel, 1); g.fillRect(6, 2, 12, 7);
+  g.fillStyle(steelLit, 1); g.fillRect(7, 2, 10, 1);
+  g.fillStyle(steelDark, 1); g.fillRect(6, 8, 12, 1);
+  // Visor slit — dark band across eye line, two glowing eyes behind
+  g.fillStyle(0x1a1a1a, 1); g.fillRect(6, 5, 12, 3);
+  g.fillStyle(0xff9030, 1); g.fillRect(9, 6, 2, 2); g.fillRect(13, 6, 2, 2);
+  g.fillStyle(0xffdd80, 1); g.fillRect(10, 6, 1, 1); g.fillRect(14, 6, 1, 1);
+  // Helmet rivets
+  g.fillStyle(0x2a2a2a, 1);
+  g.fillRect(7, 3, 1, 1); g.fillRect(16, 3, 1, 1); g.fillRect(7, 8, 1, 1); g.fillRect(16, 8, 1, 1);
+  // Rust streaks
+  g.fillStyle(rust, 1);
+  g.fillRect(8, 8, 1, 1); g.fillRect(15, 4, 1, 2);
+
+  // Exposed jaw below helmet (rotten)
+  g.fillStyle(skin, 1); g.fillRect(8, 9, 8, 2);
+  g.fillStyle(0x1a0505, 1); g.fillRect(10, 10, 4, 1);
+
+  // Pauldrons (shoulder plates)
+  g.fillStyle(steelDark, 1); g.fillRect(1, 11, 5, 4); g.fillRect(18, 11, 5, 4);
+  g.fillStyle(steel, 1); g.fillRect(1, 11, 5, 1); g.fillRect(18, 11, 5, 1);
+  g.fillStyle(rust, 1); g.fillRect(2, 14, 1, 1); g.fillRect(21, 14, 1, 1);
+
+  // Chestplate with hazard X
+  g.fillStyle(steelDark, 1); g.fillRect(5, 11, 14, 10);
+  g.fillStyle(steel, 1); g.fillRect(5, 11, 14, 1);
+  g.fillStyle(steelLit, 1); g.fillRect(5, 11, 1, 10); g.fillRect(6, 12, 1, 8);
+  // Hazard X
+  g.fillStyle(0xffcc33, 1);
+  for (let i = 0; i < 6; i++) {
+    g.fillRect(8 + i, 13 + i, 1, 1);
+    g.fillRect(15 - i, 13 + i, 1, 1);
   }
 
-  // Boss zombie — bigger, crimson, with spikes
-  if (!scene.textures.exists('zombie_boss')) {
-    const g = scene.add.graphics();
-    const s = 36;
-    // body
-    g.fillStyle(0x551010, 1); g.fillRect(6, 14, s - 12, 18);
-    // head
-    g.fillStyle(0x3a0a0a, 1); g.fillRect(9, 2, s - 18, 12);
-    // arms
-    g.fillStyle(0x551010, 1); g.fillRect(0, 16, 6, 10); g.fillRect(s - 6, 16, 6, 10);
-    // legs
-    g.fillRect(10, 32, 5, 4); g.fillRect(s - 15, 32, 5, 4);
-    // feet
-    g.fillStyle(0x1a0505, 1); g.fillRect(9, 35, 7, 3); g.fillRect(s - 16, 35, 7, 3);
-    // eyes (menacing orange)
-    g.fillStyle(0xff4020, 1); g.fillRect(13, 6, 3, 3); g.fillRect(s - 16, 6, 3, 3);
-    g.fillStyle(0xffffaa, 1); g.fillRect(14, 7, 1, 1); g.fillRect(s - 15, 7, 1, 1);
-    // mouth blood
-    g.fillStyle(0x8a1a1a, 1); g.fillRect(15, 11, 6, 2);
-    g.fillStyle(0x551010, 1); g.fillRect(16, 13, 2, 2); g.fillRect(20, 13, 2, 2);
-    // spikes on shoulders
-    g.fillStyle(0x2a2a2a, 1);
-    g.fillRect(4, 12, 3, 3); g.fillRect(8, 10, 3, 3);
-    g.fillRect(s - 7, 12, 3, 3); g.fillRect(s - 11, 10, 3, 3);
-    // chestplate
-    g.fillStyle(0x3a3a3a, 1); g.fillRect(10, 17, s - 20, 8);
-    g.fillStyle(0x555555, 1); g.fillRect(10, 17, s - 20, 1);
-    // outline
-    g.lineStyle(2, 0x000000, 1);
-    g.strokeRect(6, 14, s - 12, 18); g.strokeRect(9, 2, s - 18, 12);
-    g.generateTexture('zombie_boss', s, 38);
-    g.destroy();
-  }
+  // Chestplate bottom edge with bolts
+  g.fillStyle(0x2a2a2a, 1);
+  g.fillRect(6, 20, 1, 1); g.fillRect(11, 20, 1, 1); g.fillRect(17, 20, 1, 1);
+
+  // Arms — rotten skin between pauldron and gauntlet
+  g.fillStyle(skin, 1); g.fillRect(2, 15, 4, 3); g.fillRect(18, 15, 4, 3);
+  // Gauntlets
+  g.fillStyle(steel, 1); g.fillRect(1, 18, 5, 3); g.fillRect(18, 18, 5, 3);
+  g.fillStyle(steelDark, 1); g.fillRect(1, 20, 5, 1); g.fillRect(18, 20, 5, 1);
+
+  // Heavy greaves (legs)
+  g.fillStyle(steelDark, 1);
+  g.fillRect(7, 21, 4, 5); g.fillRect(13, 21, 4, 5);
+  g.fillStyle(steelLit, 1);
+  g.fillRect(7, 21, 4, 1); g.fillRect(13, 21, 4, 1);
+  // Boots
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(6, 26, 5, 2); g.fillRect(13, 26, 5, 2);
+
+  outlineRect(g, 5, 11, 14, 10, 0x0a0a0a);
+  outlineRect(g, 6, 2, 12, 7, 0x0a0a0a);
+
+  g.generateTexture(key, W, H);
+  g.destroy();
+}
+
+// --- Brute: hulking muscled abomination with chains, stitches, horns --------------------
+
+function drawBruteZombie(scene: Phaser.Scene): void {
+  const key = 'zombie_brute';
+  if (scene.textures.exists(key)) return;
+  const W = 28, H = 32;
+  const g = scene.add.graphics();
+
+  const flesh = 0x9a2830;
+  const fleshDark = 0x5a1018;
+  const fleshLit = 0xc04050;
+  const muscle = 0x702020;
+  const stitch = 0xf0c060;
+
+  // Horns protruding from top of head
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(7, 0, 2, 3); g.fillRect(19, 0, 2, 3);
+  g.fillRect(8, 2, 1, 1); g.fillRect(19, 2, 1, 1);
+  g.fillStyle(0x3a3a3a, 1);
+  g.fillRect(7, 0, 1, 1); g.fillRect(20, 0, 1, 1);
+
+  // Head — larger, angular, with mask straps
+  g.fillStyle(flesh, 1); g.fillRect(7, 3, 14, 9);
+  g.fillStyle(fleshDark, 1); g.fillRect(7, 11, 14, 1); g.fillRect(19, 4, 2, 8);
+  g.fillStyle(fleshLit, 1); g.fillRect(7, 4, 1, 5); g.fillRect(14, 5, 1, 1);
+
+  // Leather mask strap across eyes
+  g.fillStyle(0x2a1a0a, 1); g.fillRect(7, 6, 14, 2);
+  // Glowing yellow eye slits
+  g.fillStyle(0xffdd40, 1); g.fillRect(9, 6, 2, 2); g.fillRect(17, 6, 2, 2);
+  g.fillStyle(0xffffff, 1); g.fillRect(10, 6, 1, 1); g.fillRect(18, 6, 1, 1);
+  // Strap buckles
+  g.fillStyle(0x8a6030, 1); g.fillRect(7, 7, 1, 1); g.fillRect(20, 7, 1, 1);
+
+  // Stitched mouth — row of X's across mouth
+  g.fillStyle(0x1a0505, 1); g.fillRect(10, 9, 8, 2);
+  g.fillStyle(stitch, 1);
+  g.fillRect(11, 9, 1, 1); g.fillRect(13, 9, 1, 1); g.fillRect(15, 9, 1, 1); g.fillRect(17, 9, 1, 1);
+  g.fillRect(10, 10, 1, 1); g.fillRect(12, 10, 1, 1); g.fillRect(14, 10, 1, 1); g.fillRect(16, 10, 1, 1); g.fillRect(18, 10, 1, 1);
+
+  // Massive shoulders & chest
+  g.fillStyle(flesh, 1); g.fillRect(3, 12, 22, 13);
+  g.fillStyle(fleshDark, 1);
+  // Shadow under chest
+  g.fillRect(3, 24, 22, 1);
+  // Pectoral / abs definition
+  g.fillStyle(muscle, 1);
+  g.fillRect(13, 13, 2, 11);  // central sternum line
+  g.fillRect(6, 17, 16, 1);   // pectoral underline
+  g.fillRect(6, 21, 16, 1);   // ab line
+  // Muscle highlights
+  g.fillStyle(fleshLit, 1);
+  g.fillRect(5, 13, 1, 3); g.fillRect(22, 13, 1, 3);
+  g.fillRect(8, 14, 2, 1); g.fillRect(18, 14, 2, 1);
+
+  // Chain across chest — dark pixelated links
+  g.fillStyle(0x2a2a2a, 1);
+  for (let cx = 5; cx < 23; cx += 3) g.fillRect(cx, 12, 2, 1);
+  g.fillStyle(0x5a5a5a, 1);
+  for (let cx = 5; cx < 23; cx += 3) g.fillRect(cx, 12, 1, 1);
+
+  // Stitches running down chest
+  g.fillStyle(stitch, 1);
+  g.fillRect(14, 15, 1, 1); g.fillRect(13, 18, 1, 1); g.fillRect(14, 20, 1, 1);
+
+  // Oversized arms with bulging biceps
+  g.fillStyle(flesh, 1);
+  g.fillRect(0, 14, 4, 9); g.fillRect(24, 14, 4, 9);
+  g.fillStyle(fleshDark, 1);
+  g.fillRect(0, 22, 4, 1); g.fillRect(24, 22, 4, 1);
+  g.fillStyle(fleshLit, 1);
+  g.fillRect(1, 15, 1, 3); g.fillRect(26, 15, 1, 3);
+  // Broken shackles at wrists
+  g.fillStyle(0x2a2a2a, 1);
+  g.fillRect(0, 20, 4, 2); g.fillRect(24, 20, 4, 2);
+  g.fillStyle(0x6a6a6a, 1);
+  g.fillRect(0, 20, 4, 1); g.fillRect(24, 20, 4, 1);
+  // Dangling chain links
+  g.fillStyle(0x2a2a2a, 1);
+  g.fillRect(2, 22, 1, 2); g.fillRect(25, 22, 1, 2);
+  // Knuckles
+  g.fillStyle(fleshDark, 1);
+  g.fillRect(0, 23, 4, 1); g.fillRect(24, 23, 4, 1);
+
+  // Legs — blood-stained pants
+  g.fillStyle(0x2a1010, 1); g.fillRect(6, 25, 6, 6); g.fillRect(16, 25, 6, 6);
+  g.fillStyle(0x4a1a1a, 1); g.fillRect(6, 25, 6, 1); g.fillRect(16, 25, 6, 1);
+  // Tattered bottoms
+  g.fillStyle(fleshDark, 1);
+  g.fillRect(7, 30, 1, 1); g.fillRect(10, 30, 1, 1);
+  g.fillRect(17, 30, 1, 1); g.fillRect(20, 30, 1, 1);
+  // Heavy boots
+  g.fillStyle(0x0a0a0a, 1); g.fillRect(5, 30, 8, 2); g.fillRect(15, 30, 8, 2);
+
+  outlineRect(g, 7, 3, 14, 9, 0x0a0a0a);
+  outlineRect(g, 3, 12, 22, 13, 0x0a0a0a);
+
+  g.generateTexture(key, W, H);
+  g.destroy();
+}
+
+// --- Boss: towering armored abomination with horns, runes, cape -------------------------
+
+function drawBossZombie(scene: Phaser.Scene): void {
+  const key = 'zombie_boss';
+  if (scene.textures.exists(key)) return;
+  const W = 40, H = 44;
+  const g = scene.add.graphics();
+
+  const flesh = 0x8a1a1a;
+  const fleshLit = 0xbf2a2a;
+  const cape = 0x1a0808;
+  const capeDark = 0x0a0404;
+  const steel = 0x3a3a3a;
+  const steelLit = 0x7a7a7a;
+  const glow = 0xff4020;
+  const glowHot = 0xffcc40;
+
+  // Cape — tattered strip behind the body
+  g.fillStyle(cape, 1);
+  g.fillRect(4, 18, 32, 22);
+  // Tattered bottom
+  g.fillStyle(capeDark, 1);
+  g.fillRect(4, 38, 2, 3); g.fillRect(8, 38, 3, 4); g.fillRect(14, 38, 2, 3);
+  g.fillRect(22, 38, 2, 3); g.fillRect(27, 38, 3, 4); g.fillRect(33, 38, 3, 3);
+  // Cape folds — vertical stripes
+  g.fillStyle(capeDark, 1);
+  g.fillRect(10, 18, 1, 20); g.fillRect(18, 18, 1, 20); g.fillRect(26, 18, 1, 20);
+
+  // Horns — tall curved
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(9, 0, 3, 5); g.fillRect(28, 0, 3, 5);
+  g.fillRect(11, 3, 1, 2); g.fillRect(28, 3, 1, 2);
+  g.fillStyle(steelLit, 1);
+  g.fillRect(9, 0, 1, 2); g.fillRect(30, 0, 1, 2);
+
+  // Head / helmet
+  g.fillStyle(steel, 1); g.fillRect(11, 3, 18, 12);
+  g.fillStyle(steelLit, 1); g.fillRect(12, 3, 16, 1);
+  g.fillStyle(0x1a1a1a, 1); g.fillRect(11, 13, 18, 2);
+  // Horn bases
+  g.fillStyle(steel, 1); g.fillRect(10, 4, 2, 2); g.fillRect(28, 4, 2, 2);
+
+  // Rune-etched visor with glowing eyes
+  g.fillStyle(0x1a0505, 1); g.fillRect(11, 6, 18, 4);
+  g.fillStyle(glow, 1); g.fillRect(14, 7, 3, 3); g.fillRect(23, 7, 3, 3);
+  g.fillStyle(glowHot, 1); g.fillRect(15, 7, 1, 1); g.fillRect(24, 7, 1, 1);
+  g.fillStyle(0xffffff, 1); g.fillRect(15, 8, 1, 1); g.fillRect(24, 8, 1, 1);
+  // Runes etched on helm
+  g.fillStyle(glow, 1);
+  g.fillRect(13, 5, 1, 1); g.fillRect(17, 5, 1, 1); g.fillRect(22, 5, 1, 1); g.fillRect(26, 5, 1, 1);
+
+  // Jawline — bloody maw below helmet
+  g.fillStyle(flesh, 1); g.fillRect(13, 11, 14, 4);
+  g.fillStyle(0x1a0505, 1); g.fillRect(15, 12, 10, 2);
+  // Fangs
+  g.fillStyle(0xe8e0d0, 1);
+  g.fillRect(15, 12, 1, 2); g.fillRect(18, 12, 1, 2); g.fillRect(21, 12, 1, 2); g.fillRect(24, 12, 1, 2);
+
+  // Shoulder spikes
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(3, 14, 4, 3); g.fillRect(6, 11, 3, 3);
+  g.fillRect(33, 14, 4, 3); g.fillRect(31, 11, 3, 3);
+  g.fillStyle(steelLit, 1);
+  g.fillRect(3, 14, 1, 1); g.fillRect(36, 14, 1, 1);
+
+  // Armored chestplate
+  g.fillStyle(steel, 1); g.fillRect(9, 15, 22, 14);
+  g.fillStyle(steelLit, 1);
+  g.fillRect(9, 15, 22, 1); g.fillRect(9, 15, 1, 14);
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(9, 28, 22, 1);
+  // Rivets
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(11, 17, 1, 1); g.fillRect(28, 17, 1, 1);
+  g.fillRect(11, 26, 1, 1); g.fillRect(28, 26, 1, 1);
+  // Central glowing crack down chestplate
+  g.fillStyle(glow, 1);
+  g.fillRect(19, 16, 2, 2); g.fillRect(20, 18, 1, 4); g.fillRect(19, 22, 2, 2); g.fillRect(20, 24, 1, 4);
+  g.fillStyle(glowHot, 1);
+  g.fillRect(20, 17, 1, 1); g.fillRect(20, 23, 1, 1);
+  // Cross-chain / belt
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(9, 22, 22, 1);
+  g.fillStyle(0x5a5a5a, 1);
+  for (let cx = 10; cx < 30; cx += 3) g.fillRect(cx, 22, 1, 1);
+
+  // Arms — big armored + flesh
+  g.fillStyle(steel, 1); g.fillRect(1, 18, 6, 8); g.fillRect(33, 18, 6, 8);
+  g.fillStyle(steelLit, 1); g.fillRect(1, 18, 6, 1); g.fillRect(33, 18, 6, 1);
+  g.fillStyle(flesh, 1); g.fillRect(2, 26, 5, 4); g.fillRect(33, 26, 5, 4);
+  g.fillStyle(fleshLit, 1); g.fillRect(2, 26, 1, 2); g.fillRect(37, 26, 1, 2);
+  // Clawed fists
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(1, 30, 1, 2); g.fillRect(3, 30, 1, 2); g.fillRect(5, 30, 1, 2);
+  g.fillRect(34, 30, 1, 2); g.fillRect(36, 30, 1, 2); g.fillRect(38, 30, 1, 2);
+
+  // Legs — heavy greaves
+  g.fillStyle(steel, 1); g.fillRect(11, 29, 7, 10); g.fillRect(22, 29, 7, 10);
+  g.fillStyle(steelLit, 1); g.fillRect(11, 29, 7, 1); g.fillRect(22, 29, 7, 1);
+  g.fillStyle(0x1a1a1a, 1); g.fillRect(11, 38, 7, 1); g.fillRect(22, 38, 7, 1);
+  // Rune lines on legs
+  g.fillStyle(glow, 1);
+  g.fillRect(14, 32, 1, 3); g.fillRect(25, 32, 1, 3);
+  // Boots
+  g.fillStyle(0x0a0a0a, 1);
+  g.fillRect(10, 39, 9, 4); g.fillRect(21, 39, 9, 4);
+  g.fillStyle(steel, 1);
+  g.fillRect(10, 39, 9, 1); g.fillRect(21, 39, 9, 1);
+
+  outlineRect(g, 11, 3, 18, 12, 0x000000);
+  outlineRect(g, 9, 15, 22, 14, 0x000000);
+
+  g.generateTexture(key, W, H);
+  g.destroy();
+}
+
+/** Helper — stroke a rectangle with 1-px pixel-art outline. */
+function outlineRect(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, color: number): void {
+  g.fillStyle(color, 1);
+  g.fillRect(x, y, w, 1);
+  g.fillRect(x, y + h - 1, w, 1);
+  g.fillRect(x, y, 1, h);
+  g.fillRect(x + w - 1, y, 1, h);
 }
 
 interface Target {
@@ -181,6 +573,7 @@ export class Zombie {
   private lavaBurnMs = 0;
 
   private shadow: Phaser.GameObjects.Ellipse;
+  private shadowOffY = 0;
 
   constructor(scene: Phaser.Scene, world: World, worldX: number, worldY: number, spec: ZombieSpec) {
     this.scene = scene;
@@ -191,16 +584,23 @@ export class Zombie {
       spec.variant === 'armored' ? 'zombie_armored' :
       spec.variant === 'brute' ? 'zombie_brute' :
       'zombie_normal';
+    // Shadow dims are tuned to match (sprite height / 2) * scale for each variant
+    // so the ellipse hugs the feet after the texture resize.
     const shadowW =
-      spec.variant === 'boss' ? 42 :
-      spec.variant === 'brute' ? 32 :
-      spec.variant === 'armored' ? 26 :
-      spec.variant === 'fast' ? 20 : 22;
-    const shadowOffY = spec.variant === 'boss' ? 18 : spec.variant === 'brute' ? 16 : 12;
+      spec.variant === 'boss' ? 60 :
+      spec.variant === 'brute' ? 44 :
+      spec.variant === 'armored' ? 32 :
+      spec.variant === 'fast' ? 22 : 26;
+    const shadowOffY =
+      spec.variant === 'boss' ? 34 :
+      spec.variant === 'brute' ? 26 :
+      spec.variant === 'armored' ? 20 :
+      spec.variant === 'fast' ? 16 : 18;
     const shadowH = spec.variant === 'boss' ? 10 : spec.variant === 'brute' ? 8 : 6;
     const shadowA = spec.variant === 'boss' ? 0.45 : spec.variant === 'brute' ? 0.4 : 0.35;
     this.shadow = scene.add.ellipse(worldX, worldY + shadowOffY, shadowW, shadowH, 0x000000, shadowA);
     this.shadow.setDepth(8);
+    this.shadowOffY = shadowOffY;
     this.sprite = scene.add.image(worldX, worldY, key);
     const scale =
       spec.variant === 'boss' ? 1.8 :
@@ -368,7 +768,7 @@ export class Zombie {
     this.sprite.setRotation(Math.sin(this.walkPhase) * 0.08);
     this.sprite.y += bob - (this.sprite.getData('lastBob') ?? 0);
     this.sprite.setData('lastBob', bob);
-    this.shadow.setPosition(this.sprite.x, this.sprite.y + 12);
+    this.shadow.setPosition(this.sprite.x, this.sprite.y + this.shadowOffY);
   }
 
   private canStand(wx: number, wy: number): boolean {

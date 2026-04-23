@@ -128,30 +128,120 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     outline(g, 2, 2, 28, 28, 0x2a2a2a);
   });
 
+  // Iron ore — silvery, angular crystal shards on a cool slate-grey host rock.
+  // Rust streaks hint at oxidation. Intentionally cold / metallic to contrast gold.
   make(scene, TEX.iron_ore, 32, 32, (g) => {
-    // stone base
-    g.fillStyle(0x8a8a8a, 1); g.fillRect(2, 2, 28, 28);
-    g.fillStyle(0x6f6f6f, 1); g.fillRect(2, 24, 28, 6);
-    outline(g, 2, 2, 28, 28, 0x2a2a2a);
-    // iron nodules
-    g.fillStyle(0xc9b037, 1);
-    g.fillRect(7, 8, 4, 3); g.fillRect(18, 6, 5, 4); g.fillRect(10, 18, 6, 3); g.fillRect(20, 20, 4, 3);
-    g.fillStyle(0xe7cf52, 1);
-    g.fillRect(7, 8, 2, 1); g.fillRect(18, 6, 3, 1); g.fillRect(10, 18, 2, 1);
-    g.fillStyle(0x8e7920, 1);
-    g.fillRect(7, 10, 4, 1); g.fillRect(18, 9, 5, 1); g.fillRect(10, 20, 6, 1);
+    // Bluish-grey slate host rock
+    g.fillStyle(0x565c68, 1); g.fillRect(2, 2, 28, 28);
+    g.fillStyle(0x404651, 1); g.fillRect(2, 24, 28, 6);
+    g.fillStyle(0x6f7583, 1); g.fillRect(4, 4, 24, 2);
+    // Dark fissures
+    g.fillStyle(0x2a2e36, 1);
+    g.fillRect(6, 14, 10, 1); g.fillRect(20, 7, 8, 1); g.fillRect(12, 24, 8, 1);
+    outline(g, 2, 2, 28, 28, 0x1a1d22);
+
+    // Iron shards — angular triangles (silvery with dark outlines)
+    const shardDark = 0x5a6070;
+    const shardMid = 0x8a90a0;
+    const shardLit = 0xc0c6d4;
+    // Shard 1 — top-left, diagonal wedge
+    g.fillStyle(shardDark, 1);
+    g.fillRect(6, 6, 6, 4); g.fillRect(7, 10, 4, 1);
+    g.fillStyle(shardMid, 1);
+    g.fillRect(6, 6, 5, 1); g.fillRect(6, 7, 4, 1); g.fillRect(7, 8, 3, 1);
+    g.fillStyle(shardLit, 1);
+    g.fillRect(6, 6, 3, 1); g.fillRect(6, 7, 2, 1);
+    // Shard 2 — top-right
+    g.fillStyle(shardDark, 1);
+    g.fillRect(19, 8, 7, 5); g.fillRect(20, 13, 5, 1);
+    g.fillStyle(shardMid, 1);
+    g.fillRect(19, 8, 6, 1); g.fillRect(19, 9, 5, 1); g.fillRect(20, 10, 3, 1);
+    g.fillStyle(shardLit, 1);
+    g.fillRect(19, 8, 4, 1); g.fillRect(19, 9, 2, 1);
+    // Shard 3 — bottom-center
+    g.fillStyle(shardDark, 1);
+    g.fillRect(10, 18, 8, 5); g.fillRect(12, 23, 5, 1);
+    g.fillStyle(shardMid, 1);
+    g.fillRect(10, 18, 7, 1); g.fillRect(10, 19, 6, 1);
+    g.fillStyle(shardLit, 1);
+    g.fillRect(10, 18, 4, 1); g.fillRect(11, 19, 2, 1);
+    // Shard 4 — small accent bottom-right
+    g.fillStyle(shardDark, 1);
+    g.fillRect(21, 20, 4, 3);
+    g.fillStyle(shardMid, 1);
+    g.fillRect(21, 20, 3, 1);
+    g.fillStyle(shardLit, 1);
+    g.fillRect(21, 20, 2, 1);
+
+    // Rust streaks — small warm oxidation patches
+    g.fillStyle(0x8a4a20, 1);
+    g.fillRect(12, 11, 2, 1); g.fillRect(26, 14, 1, 2); g.fillRect(18, 23, 2, 1);
+    g.fillStyle(0xb06830, 1);
+    g.fillRect(12, 11, 1, 1); g.fillRect(26, 14, 1, 1);
+
+    // Shard outlines — thin dark edges
+    g.fillStyle(0x1a1d22, 1);
+    g.fillRect(6, 10, 6, 1); g.fillRect(11, 6, 1, 5);
+    g.fillRect(19, 13, 7, 1); g.fillRect(25, 8, 1, 5);
+    g.fillRect(10, 23, 8, 1); g.fillRect(17, 18, 1, 6);
   });
 
+  // Gold ore — bright sunny nuggets on warm, sun-lit stone with sparkle highlights.
+  // Deliberately round/blobby to contrast iron's angular shards.
   make(scene, TEX.gold_ore, 32, 32, (g) => {
-    g.fillStyle(0x8a8a8a, 1); g.fillRect(2, 2, 28, 28);
-    g.fillStyle(0x6f6f6f, 1); g.fillRect(2, 24, 28, 6);
-    outline(g, 2, 2, 28, 28, 0x2a2a2a);
-    g.fillStyle(0xffd700, 1);
-    g.fillRect(7, 7, 5, 4); g.fillRect(18, 8, 4, 3); g.fillRect(8, 18, 4, 3); g.fillRect(18, 18, 6, 4);
-    g.fillStyle(0xfff0a0, 1);
-    g.fillRect(7, 7, 3, 1); g.fillRect(18, 8, 2, 1); g.fillRect(18, 18, 3, 1);
-    g.fillStyle(0xa17700, 1);
-    g.fillRect(7, 10, 5, 1); g.fillRect(18, 10, 4, 1); g.fillRect(18, 21, 6, 1);
+    // Warm tan host rock — distinctly different from iron's cool slate
+    g.fillStyle(0x9a8058, 1); g.fillRect(2, 2, 28, 28);
+    g.fillStyle(0x7a6340, 1); g.fillRect(2, 24, 28, 6);
+    g.fillStyle(0xb59c70, 1); g.fillRect(4, 4, 24, 2);
+    // Subtle veining
+    g.fillStyle(0x5a4930, 1);
+    g.fillRect(5, 13, 2, 1); g.fillRect(18, 15, 2, 1); g.fillRect(24, 22, 2, 1);
+    outline(g, 2, 2, 28, 28, 0x3a2d18);
+
+    const goldDeep = 0xa17700;
+    const goldMid = 0xffd700;
+    const goldLit = 0xfff0a0;
+
+    // Nugget 1 — rounded blob top-left
+    g.fillStyle(goldDeep, 1);
+    g.fillRect(6, 7, 6, 5); g.fillRect(7, 6, 4, 1); g.fillRect(7, 12, 4, 1);
+    g.fillStyle(goldMid, 1);
+    g.fillRect(7, 7, 4, 4); g.fillRect(8, 6, 3, 1);
+    g.fillStyle(goldLit, 1);
+    g.fillRect(7, 7, 2, 1); g.fillRect(7, 8, 1, 2);
+    // Nugget 2 — larger blob bottom-right
+    g.fillStyle(goldDeep, 1);
+    g.fillRect(18, 17, 8, 7); g.fillRect(19, 16, 6, 1); g.fillRect(19, 24, 6, 1);
+    g.fillStyle(goldMid, 1);
+    g.fillRect(19, 17, 6, 6); g.fillRect(20, 16, 4, 1);
+    g.fillStyle(goldLit, 1);
+    g.fillRect(19, 17, 3, 1); g.fillRect(19, 18, 1, 3);
+    // Nugget 3 — mid blob top-right
+    g.fillStyle(goldDeep, 1);
+    g.fillRect(20, 7, 5, 4); g.fillRect(21, 6, 3, 1); g.fillRect(21, 11, 3, 1);
+    g.fillStyle(goldMid, 1);
+    g.fillRect(21, 7, 3, 3);
+    g.fillStyle(goldLit, 1);
+    g.fillRect(21, 7, 1, 1); g.fillRect(22, 7, 1, 1);
+    // Nugget 4 — small blob bottom-left
+    g.fillStyle(goldDeep, 1);
+    g.fillRect(7, 19, 4, 3); g.fillRect(8, 18, 2, 1); g.fillRect(8, 22, 2, 1);
+    g.fillStyle(goldMid, 1);
+    g.fillRect(8, 19, 2, 2);
+    g.fillStyle(goldLit, 1);
+    g.fillRect(8, 19, 1, 1);
+
+    // Sparkle twinkles (plus-shape single pixels)
+    const sparkle = (cx: number, cy: number) => {
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(cx, cy, 1, 1);
+      g.fillStyle(0xfff6c0, 1);
+      g.fillRect(cx - 1, cy, 1, 1); g.fillRect(cx + 1, cy, 1, 1);
+      g.fillRect(cx, cy - 1, 1, 1); g.fillRect(cx, cy + 1, 1, 1);
+    };
+    sparkle(9, 9);
+    sparkle(22, 19);
+    sparkle(26, 9);
   });
 
   make(scene, TEX.wall_wood, 32, 32, (g) => {
