@@ -652,6 +652,7 @@ export class GameScene extends Phaser.Scene {
       const outcome = useHammer(this.world, tp.x, tp.y, this.state);
       if (outcome.ok) {
         sounds.place();
+        this.world.refreshHpBar(tp.x, tp.y);
         const wc = this.world.tileToWorldCenter(tp.x, tp.y);
         this.effects.burst(wc.x, wc.y, 0xffffaa, 10, 90, 380, 1.0);
         this.popNumber(wc.x, wc.y - 10, `-1 ${outcome.material}`, '#ffd166');

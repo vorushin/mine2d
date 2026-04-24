@@ -408,6 +408,17 @@ export class World {
     return { x: x * TILE_SIZE + TILE_SIZE / 2, y: y * TILE_SIZE + TILE_SIZE / 2 };
   }
 
+  /**
+   * Refresh the floating HP bar for a tile after its hp changed outside of
+   * {@link damageTile} (e.g., after being repaired). Despawns the bar if
+   * the tile is back to full HP.
+   */
+  refreshHpBar(x: number, y: number): void {
+    const t = this.getTileAt(x, y);
+    if (!t) return;
+    this.updateHpBar(x, y, t);
+  }
+
   /** Redraw a single tile's ground image (e.g., after converting it to crater/lava). */
   forceRedrawGround(x: number, y: number): void {
     const t = this.getTileAt(x, y);
