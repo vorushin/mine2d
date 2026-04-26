@@ -52,7 +52,6 @@ export const TEX = {
   raindrop: 'raindrop',
   trophy: 'trophy',
   chicken: 'chicken',
-  food: 'food',
   star: 'star',
   volcano: 'volcano',
   crater: 'crater',
@@ -677,16 +676,6 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xd0d0d0, 1); g.fillRect(0, 5, 2, 2);
     outline(g, 3, 5, 10, 7, 0x1a1a1a);
     outline(g, 10, 2, 5, 5, 0x1a1a1a);
-  });
-
-  // Food (drumstick-like)
-  make(scene, TEX.food, 14, 14, (g) => {
-    g.fillStyle(0xd58a4a, 1); g.fillRect(4, 4, 8, 6);
-    g.fillStyle(0xe6a870, 1); g.fillRect(4, 4, 8, 2);
-    g.fillStyle(0xfefefe, 1); g.fillRect(2, 2, 4, 4); // bone
-    g.fillStyle(0xdddddd, 1); g.fillRect(2, 6, 4, 2);
-    outline(g, 4, 4, 8, 6, 0x1a1a1a);
-    outline(g, 2, 2, 4, 4, 0x1a1a1a);
   });
 
   // Volcano — big pile of blackened rock with molten glow

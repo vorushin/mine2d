@@ -179,7 +179,8 @@ describe('SaveLoad', () => {
     }));
     const loaded = SaveLoad.load()!;
     expect(loaded.state.inventory.counts.wood).toBe(3);
-    expect(loaded.state.inventory.counts.food).toBe(2);
-    expect((loaded.state.inventory.counts as Record<string, number>).unobtainium).toBeUndefined();
+    const counts = loaded.state.inventory.counts as Record<string, number>;
+    expect(counts.unobtainium).toBeUndefined();
+    expect(counts.food).toBeUndefined();
   });
 });

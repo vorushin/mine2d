@@ -216,7 +216,7 @@ function stringOr<T extends string>(v: unknown, allowed: readonly T[], fallback:
 
 const VALID_PHASES = ['day', 'dusk', 'night', 'dawn'] as const;
 const VALID_MATERIALS: readonly MaterialId[] = [
-  'wood', 'stone', 'iron', 'gold', 'arrow', 'bullet', 'lava', 'potion', 'food',
+  'wood', 'stone', 'iron', 'gold', 'arrow', 'bullet', 'lava',
   'bomb', 'wallReinforced', 'turretFlame',
 ];
 

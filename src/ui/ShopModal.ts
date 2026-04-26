@@ -15,7 +15,7 @@ export interface ModalDeps {
 const INVENTORY_ORDER: MaterialId[] = [
   'wood', 'stone', 'iron', 'gold',
   'arrow', 'bullet', 'bomb',
-  'lava', 'potion', 'food',
+  'lava',
   'wallReinforced', 'turretFlame',
 ];
 
@@ -27,8 +27,6 @@ const MATERIAL_COLORS: Record<MaterialId, number> = {
   arrow: 0xe6e6e6,
   bullet: 0xffaa00,
   lava: 0xff4d1a,
-  potion: 0xff66aa,
-  food: 0xd58a4a,
   bomb: 0x2a2a2a,
   wallReinforced: 0x5a5a70,
   turretFlame: 0xff8030,

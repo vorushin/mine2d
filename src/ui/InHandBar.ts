@@ -119,8 +119,10 @@ export class InHandBar {
     const totalCells = TOUCH_INHAND_SLOTS.length + 1;
     const totalW = totalCells * CELL_W + (totalCells - 1) * GAP;
     const startX = (w - totalW) / 2 + CELL_W / 2;
-    const padRadius = 60;
-    const y = h - padRadius * 2 - 30;
+    // Bar sits at the very bottom edge, centered between the two corner pads.
+    // Bar (~410 px wide) and pads (~120 px each in opposite corners) share the
+    // bottom strip without overlapping horizontally on any reasonable screen.
+    const y = h - CELL_H / 2 - 10;
     for (let i = 0; i < this.toolCells.length; i++) {
       const c = this.toolCells[i];
       const cx = startX + i * (CELL_W + GAP);

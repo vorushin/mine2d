@@ -3,8 +3,8 @@ import { World } from '../world/World';
 import { TEX } from '../gfx/textures';
 
 /**
- * Friendly wandering chicken. Roams randomly, flees briefly if approached,
- * gets spooked and despawns if hit (leaving a food pickup). Cosmetic + tiny reward.
+ * Friendly wandering chicken. Roams randomly and flees briefly if approached.
+ * Cosmetic; the rare golden variant drops a pile of gold when killed.
  */
 export class Chicken {
   readonly sprite: Phaser.GameObjects.Image;

@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { GameScene } from './GameScene';
 import { HOTBAR, HotbarAction, hotbarAvailable } from '../ui/hotbarDef';
 import { GameState, hasItem } from '../state/GameState';
-import { consumeFood, consumePotion } from '../systems/Consumables';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { AimPad } from '../ui/AimPad';
 import { InHandBar } from '../ui/InHandBar';
@@ -251,11 +250,7 @@ export class UIScene extends Phaser.Scene {
       { key: 'stone', color: 0x888888, label: 'S' },
       { key: 'iron', color: 0xc9b037, label: 'I' },
       { key: 'gold', color: 0xffd700, label: 'G' },
-      { key: 'arrow', color: 0xe6e6e6, label: 'A' },
-      { key: 'bullet', color: 0xffaa00, label: 'B' },
       { key: 'lava', color: 0xff4d1a, label: 'L' },
-      { key: 'potion', color: 0xff66aa, label: 'P' },
-      { key: 'food', color: 0xd58a4a, label: 'F' },
     ];
     for (const it of items) {
       const bg = this.add.rectangle(0, 0, 56, 22, 0x1a1c22, 0.88).setStrokeStyle(1, 0x555, 0.7).setOrigin(0, 0.5);
@@ -265,16 +260,6 @@ export class UIScene extends Phaser.Scene {
       }).setOrigin(0, 0.5);
       this.invPanel.add([bg, swatch, text]);
       this.invChips.push({ bg, swatch, text, key: it.key });
-      if (it.key === 'food' || it.key === 'potion') {
-        bg.setInteractive({ useHandCursor: true });
-        bg.on('pointerdown', () => {
-          if (!this.joystick) return; // touch only
-          const r = it.key === 'food' ? consumeFood(this.state) : consumePotion(this.state);
-          if (r.ok) {
-            this.gameScene.popNumber(this.gameScene.player.x, this.gameScene.player.y - 20, `+${r.healed} HP`, '#9effa0');
-          }
-        });
-      }
     }
   }
 

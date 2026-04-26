@@ -44,12 +44,6 @@ export const SHOP_OFFERS: ShopOffer[] = [
     effect: { kind: 'heal', amount: 80 },
   },
   {
-    id: 'food_x3',
-    label: '3 Food',
-    payments: [{ kind: 'gold', count: 2 }, { kind: 'barter', material: 'wood', count: 6 }],
-    effect: { kind: 'material', material: 'food', count: 3 },
-  },
-  {
     id: 'lava_x1',
     label: '1 Lava',
     payments: [{ kind: 'gold', count: 4 }, { kind: 'barter', material: 'iron', count: 3 }],

@@ -14,8 +14,6 @@ const CONTROLS: [string, string][] = [
   ['Mouse wheel', 'Cycle hotbar'],
   ['E', 'Interact (shop, bench, door)'],
   ['C', 'Open crafting anywhere'],
-  ['P', 'Drink a health potion (+40 HP)'],
-  ['F', 'Eat food (+20 HP)'],
   ['Shift', 'Dash — 2× speed burst'],
   ['Click Rex', 'Pet the dog (+3 HP, hearts)'],
   ['N', 'Skip to night (day only)'],
@@ -25,7 +23,7 @@ const CONTROLS: [string, string][] = [
 
 const EVENTS: [string, string][] = [
   ['🐶 Rex', 'Your companion — levels up with kills'],
-  ['🐔 Chickens', 'Kill for food; F to eat'],
+  ['🐔 Chickens', 'Cosmetic — wander the world'],
   ['🌉 Bridge', 'Place on water to walk across the lake'],
   ['🔥 Torch', 'Damages zombies at night in a small radius'],
   ['🏕 Campfire', 'Heal faster when you stand next to it'],
@@ -34,7 +32,7 @@ const EVENTS: [string, string][] = [
   ['🌋 Volcano', 'Grows lava each day. Break with iron pickaxe'],
   ['🩸 Blood Moon', 'Every 5th night — +50% loot'],
   ['⚡ Lightning', 'During rain — blasts zombies near the bolt'],
-  ['✨ Golden Chicken', 'Rare — worth 8 gold'],
+  ['✨ Golden Chicken', 'Rare — worth 12 gold'],
   ['🏆 Boss', 'Every 5 nights — drops massive loot + fireworks'],
 ];
 

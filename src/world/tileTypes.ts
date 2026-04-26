@@ -35,7 +35,7 @@ export const enum TileType {
 export type MaterialId =
   | 'wood' | 'stone' | 'iron' | 'gold'
   | 'arrow' | 'bullet'
-  | 'lava' | 'potion' | 'food'
+  | 'lava'
   | 'bomb' | 'wallReinforced' | 'turretFlame';
 
 export type ToolTier = 0 | 1 | 2 | 3;
@@ -82,7 +82,7 @@ export const TILE_SPECS: Record<TileType, TileSpec> = {
   [TileType.Campfire]: { walkable: false, opaque: true, baseHp: 6, pickaxeTier: 0, tintColor: C(0xff8030) },
   [TileType.Cake]: { walkable: false, opaque: true, baseHp: 1, pickaxeTier: 0, tintColor: C(0xffc0cb) },
   [TileType.FlowerField]: { walkable: true, opaque: false, baseHp: 0, pickaxeTier: 0, tintColor: C(0xffb0d8) },
-  [TileType.Mushroom]: { walkable: false, opaque: true, baseHp: 2, pickaxeTier: 0, dropMaterial: 'potion', dropCount: 1, tintColor: C(0xd04040) },
+  [TileType.Mushroom]: { walkable: false, opaque: true, baseHp: 2, pickaxeTier: 0, tintColor: C(0xd04040) },
   [TileType.Pumpkin]: { walkable: false, opaque: true, baseHp: 3, pickaxeTier: 0, dropMaterial: 'wood', dropCount: 1, tintColor: C(0xff8c00) },
   [TileType.Volcano]: { walkable: false, opaque: true, baseHp: 300, pickaxeTier: 2, dropMaterial: 'gold', dropCount: 8, tintColor: C(0xb01a00) },
   [TileType.Crater]: { walkable: true, opaque: false, baseHp: 0, pickaxeTier: 0, tintColor: C(0x3a2410) },

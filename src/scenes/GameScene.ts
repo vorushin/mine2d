@@ -22,7 +22,6 @@ import { HOTBAR, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
 import { snap8Way } from '../ui/aimMath';
 import { selectAutoAimTarget } from '../ui/autoAim';
-import { consumeFood, consumePotion } from '../systems/Consumables';
 
 export class GameScene extends Phaser.Scene {
   state!: GameState;
@@ -257,14 +256,6 @@ export class GameScene extends Phaser.Scene {
     // K — manual save
     this.input.keyboard?.on('keydown-K', () => this.saveRun('Manual save'));
 
-    // P — drink a potion
-    this.input.keyboard?.on('keydown-P', () => {
-      const r = consumePotion(this.state);
-      if (!r.ok) return this.showHint('No potions — buy at shop');
-      this.popNumber(this.player.x, this.player.y - 20, `+${r.healed} HP`, '#9effa0');
-      sounds.pickup();
-      this.effects.burst(this.player.x, this.player.y, 0xff66aa, 10, 90, 400, 1);
-    });
 
     // Shift — dash
     this.input.keyboard?.on('keydown-SHIFT', () => {
@@ -274,13 +265,6 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // F — eat food
-    this.input.keyboard?.on('keydown-F', () => {
-      const r = consumeFood(this.state);
-      if (!r.ok) return this.showHint('No food — kill a chicken');
-      this.popNumber(this.player.x, this.player.y - 20, `+${r.healed} HP yum`, '#ffd166');
-      sounds.pickup();
-    });
 
     this.input.on('wheel', (_p: any, _obj: any, _dx: number, dy: number) => {
       const dir = dy > 0 ? 1 : -1;
@@ -584,7 +568,7 @@ export class GameScene extends Phaser.Scene {
           if (z.takeDamage(dmg)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
         }
       }
-      // Hit any nearby chickens too (for food)
+      // Hit any nearby chickens too
       for (const c of this.chickens) {
         if (!c.alive) continue;
         const d = Math.hypot(c.x - worldX, c.y - worldY);
@@ -593,14 +577,11 @@ export class GameScene extends Phaser.Scene {
           this.effects.burst(c.x, c.y, c.golden ? 0xffd700 : 0xffffff, 6, 60, 300, 0.6);
           if (c.takeDamage(dmg)) {
             if (c.golden) {
-              // Golden chicken rewards: lots of gold + food
-              this.pickups.push(new Pickup(this, c.x, c.y, 'gold', 8));
-              this.pickups.push(new Pickup(this, c.x + 8, c.y, 'food', 3));
+              this.pickups.push(new Pickup(this, c.x, c.y, 'gold', 12));
               this.effects.burst(c.x, c.y, 0xffd700, 24, 160, 800, 1.6);
-              this.showBanner('✨ GOLDEN CHICKEN', '+8 gold · +3 food');
+              this.showBanner('✨ GOLDEN CHICKEN', '+12 gold');
               sounds.cake();
             } else {
-              this.pickups.push(new Pickup(this, c.x, c.y, 'food', 1));
               sounds.zombieHit();
             }
           }
@@ -1152,7 +1133,7 @@ export class GameScene extends Phaser.Scene {
       this.launchFireworks();
       const bossLoot: { m: MaterialId; c: number }[] = [
         { m: 'gold', c: 6 }, { m: 'iron', c: 4 }, { m: 'stone', c: 3 },
-        { m: 'potion', c: 1 }, { m: 'bullet', c: 5 }, { m: 'lava', c: 1 },
+        { m: 'bullet', c: 5 }, { m: 'lava', c: 1 },
       ];
       for (const l of bossLoot) {
         this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 28, y + (Math.random() - 0.5) * 28, l.m, l.c));
@@ -1168,7 +1149,6 @@ export class GameScene extends Phaser.Scene {
     if (Math.random() < 0.32 * moonMult) drops.push({ m: 'wood', c: 1 });
     if (Math.random() < 0.16 * moonMult) drops.push({ m: 'stone', c: 1 });
     if (Math.random() < 0.08 * moonMult) drops.push({ m: 'iron', c: 1 });
-    if (Math.random() < 0.02 * moonMult) drops.push({ m: 'potion', c: 1 });
     for (const d of drops) {
       this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 10, d.m, d.c));
       if (d.m === 'gold') this.state.stats.goldEarned += d.c;
