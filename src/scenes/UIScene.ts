@@ -10,6 +10,7 @@ import { PlacementGhost } from '../ui/PlacementGhost';
 import { MinimapToggle } from '../ui/MinimapToggle';
 import { InteractButton } from '../ui/InteractButton';
 import { OrientationOverlay } from '../ui/OrientationOverlay';
+import { OverflowMenu } from '../ui/OverflowMenu';
 import { Modal } from '../ui/ShopModal';
 import { HelpOverlay } from '../ui/HelpOverlay';
 import { Minimap } from '../ui/Minimap';
@@ -46,8 +47,8 @@ export class UIScene extends Phaser.Scene {
   private minimapToggle?: MinimapToggle;
   private contextInteractButton?: InteractButton;
   private orientationOverlay?: OrientationOverlay;
+  private overflowMenu?: OverflowMenu;
   private modal: Modal | null = null;
-  private skipNightButton?: Phaser.GameObjects.Rectangle;
   private shopCompass?: Phaser.GameObjects.Container;
   private minimap?: Minimap;
   private bossHpBarBg?: Phaser.GameObjects.Rectangle;
@@ -97,7 +98,6 @@ export class UIScene extends Phaser.Scene {
           }
         },
       });
-      this.buildSkipNightButton();
       this.inHandBar = new InHandBar(this, this.state, {
         onSelectTool: (hotbarIdx) => {
           if (this.placementHotbarIdx !== null) this.exitPlacementMode();
@@ -113,6 +113,16 @@ export class UIScene extends Phaser.Scene {
       this.minimapToggle = new MinimapToggle(this, this.gameScene);
       this.contextInteractButton = new InteractButton(this, () => this.gameScene.handleInteractPressed());
       this.orientationOverlay = new OrientationOverlay(this);
+      this.overflowMenu = new OverflowMenu(this, [
+        { icon: '?', label: 'Help', onPress: () => this.toggleHelp() },
+        {
+          icon: '⏵',
+          label: 'Skip to Night',
+          onPress: () => this.gameScene.cycle.skipToNight(),
+          isVisible: () => this.state.phase === 'day',
+        },
+      ]);
+      this.helpButton.setVisible(false);
     }
 
     this.events.on('hotbar_changed', () => this.renderHotbar());
@@ -305,16 +315,6 @@ export class UIScene extends Phaser.Scene {
     this.gameScene.handleTileInteraction(wc.x, wc.y);
   }
 
-  private buildSkipNightButton(): void {
-    this.skipNightButton = this.add.rectangle(0, 0, 96, 28, 0x26334a, 0.85).setScrollFactor(0).setDepth(1000);
-    this.skipNightButton.setStrokeStyle(1, 0x88aaff, 0.6);
-    this.skipNightButton.setInteractive({ useHandCursor: true });
-    this.skipNightButton.on('pointerdown', () => this.gameScene.cycle.skipToNight());
-    const skipText = this.add.text(0, 0, 'Skip to Night', {
-      fontFamily: 'system-ui', fontSize: '12px', color: '#fff',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
-    this.skipNightButton.setData('text', skipText);
-  }
 
   layout(): void {
     const w = this.scale.width;
@@ -382,24 +382,19 @@ export class UIScene extends Phaser.Scene {
       }
     }
 
-    if (this.helpButton) {
-      if (isTouchHud) this.helpButton.setPosition(this.scale.width - 90, 22);
-      else this.helpButton.setPosition(22, h - cellH - 34);
+    if (this.helpButton && !isTouchHud) {
+      this.helpButton.setPosition(22, h - cellH - 34);
     }
     if (this.joystick) this.joystick.setPosition(80, h - 80);
     if (this.aimPad) this.aimPad.setPosition(w - 80, h - 80);
     this.inHandBar?.layout();
     this.minimap?.layout();
     this.minimapToggle?.setPosition(w - 60, 22);
+    this.overflowMenu?.setPosition(w - 28, 22);
     if (this.contextInteractButton) {
       this.contextInteractButton.setPosition(w - 80, h - 80 - 80);
     }
 
-    if (this.skipNightButton) {
-      this.skipNightButton.setPosition(w - 64, 44);
-      const t = this.skipNightButton.getData('text') as Phaser.GameObjects.Text;
-      t.setPosition(w - 64, 44);
-    }
   }
 
   update(): void {
@@ -495,8 +490,6 @@ export class UIScene extends Phaser.Scene {
     const extra = this.state.phase === 'night' ? `   •   zombies ${this.gameScene.zombies.filter((z) => z.alive).length}` : '';
     const rex = this.gameScene.dog?.alive ? `   •   🐶 Lv ${this.gameScene.dog.level}` : '';
     this.nightLabel.setText(`Night ${this.state.nightNumber}   •   Score ${this.state.score}   •   kills ${kills}${rex}${extra}`);
-
-    if (this.skipNightButton) this.skipNightButton.setVisible(this.state.phase === 'day');
   }
 
   private renderHotbar(): void {
