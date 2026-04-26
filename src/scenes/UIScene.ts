@@ -3,10 +3,8 @@ import { GameScene } from './GameScene';
 import { HOTBAR, HotbarAction, hotbarAvailable } from '../ui/hotbarDef';
 import { GameState, hasItem } from '../state/GameState';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
-import { AimPad } from '../ui/AimPad';
 import { InHandBar } from '../ui/InHandBar';
 import { BuildPicker } from '../ui/BuildPicker';
-import { PlacementGhost } from '../ui/PlacementGhost';
 import { MinimapToggle } from '../ui/MinimapToggle';
 import { InteractButton } from '../ui/InteractButton';
 import { OrientationOverlay } from '../ui/OrientationOverlay';
@@ -38,10 +36,8 @@ export class UIScene extends Phaser.Scene {
   private invPanel!: Phaser.GameObjects.Container;
   private invChips: { bg: Phaser.GameObjects.Rectangle; swatch: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text; key: string }[] = [];
   private joystick?: VirtualJoystick;
-  aimPad?: AimPad;
   private inHandBar?: InHandBar;
   private buildPicker: BuildPicker | null = null;
-  private placementGhost: PlacementGhost | null = null;
   private placementHotbarIdx: number | null = null;
   private prePlacementHotbarSlot: number | null = null;
   private minimapToggle?: MinimapToggle;
@@ -77,26 +73,10 @@ export class UIScene extends Phaser.Scene {
     }
     if (isTouch) {
       this.joystick = new VirtualJoystick(this, 80, this.scale.height - 80, 60);
-      this.aimPad = new AimPad(this, this.scale.width - 80, this.scale.height - 80, 60);
       this.time.addEvent({
         delay: 16,
         loop: true,
         callback: () => this.gameScene.input2.setJoystickVector({ x: this.joystick!.value.x, y: this.joystick!.value.y }),
-      });
-      this.aimPad.events.on('change', (x: number, y: number) => {
-        this.gameScene.handleAimAction(x, y, false);
-      });
-      this.aimPad.events.on('release', (x: number, y: number) => {
-        this.gameScene.handleAimAction(x, y, true);
-      });
-      this.time.addEvent({
-        delay: 60,
-        loop: true,
-        callback: () => {
-          if (this.aimPad?.value.active) {
-            this.gameScene.handleAimAction(this.aimPad.value.x, this.aimPad.value.y, false);
-          }
-        },
       });
       this.inHandBar = new InHandBar(this, this.state, {
         onSelectTool: (hotbarIdx) => {
@@ -107,7 +87,6 @@ export class UIScene extends Phaser.Scene {
         },
         onBuildPressed: () => this.openBuildPicker(),
         onCancelPressed: () => this.exitPlacementMode(),
-        onPlacePressed: () => this.commitPlacement(),
       });
       this.hotbarContainer.setVisible(false);
       this.minimapToggle = new MinimapToggle(this, this.gameScene);
@@ -288,15 +267,12 @@ export class UIScene extends Phaser.Scene {
     this.placementHotbarIdx = hotbarIdx;
     this.state.hotbarSlot = hotbarIdx;
     this.gameScene.refreshPlayerWeapon();
-    const act = HOTBAR[hotbarIdx];
-    this.placementGhost = new PlacementGhost(this.gameScene, act.color);
     this.inHandBar?.setPlacementMode(true);
+    this.events.emit('hotbar_changed');
   }
 
   private exitPlacementMode(): void {
     if (this.placementHotbarIdx === null) return;
-    this.placementGhost?.destroy();
-    this.placementGhost = null;
     this.placementHotbarIdx = null;
     if (this.prePlacementHotbarSlot !== null) {
       this.state.hotbarSlot = this.prePlacementHotbarSlot;
@@ -307,12 +283,34 @@ export class UIScene extends Phaser.Scene {
     this.inHandBar?.setPlacementMode(false);
   }
 
-  private commitPlacement(): void {
-    if (this.placementHotbarIdx === null) return;
-    const tile = this.gameScene.getCurrentPlacementTarget();
-    if (!tile || !tile.valid) return;
-    const wc = this.gameScene.world.tileToWorldCenter(tile.tx, tile.ty);
-    this.gameScene.handleTileInteraction(wc.x, wc.y);
+  /**
+   * Returns true if the screen-coord pointer falls on a touch UI element.
+   * Used by GameScene's touch-tap handler to skip tile interactions that
+   * land on the joystick, the in-hand bar, or the top HUD.
+   */
+  isPointerOnUI(p: Phaser.Input.Pointer): boolean {
+    if (!this.joystick) return false; // desktop: every world tap is a real tap
+    const x = p.x;
+    const y = p.y;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    if (y < 60) return true; // top HUD strip (HP, phase, score, map icon, ⋯)
+    if (y > h - 90) return true; // bottom strip: in-hand bar + corner pads
+    if (Math.hypot(x - 80, y - (h - 80)) < 70) return true; // left pad zone
+    if (y < 110 && x < 220) return true; // inventory chips (3-col grid on touch)
+    if (this.contextInteractButton && this.gameScene.getAdjacentInteractable()) {
+      if (Math.hypot(x - (w - 80), y - (h - 160)) < 28) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Returns true if any modal/popup is currently open. World taps should be
+   * ignored entirely while a modal is up — the modal's own backdrop handles
+   * close-on-outside-tap.
+   */
+  hasOpenModal(): boolean {
+    return !!(this.modal || this.helpOverlay || this.buildPicker || this.minimapToggle?.isOpen());
   }
 
 
@@ -386,7 +384,6 @@ export class UIScene extends Phaser.Scene {
       this.helpButton.setPosition(22, h - cellH - 34);
     }
     if (this.joystick) this.joystick.setPosition(80, h - 80);
-    if (this.aimPad) this.aimPad.setPosition(w - 80, h - 80);
     this.inHandBar?.layout();
     this.minimap?.layout();
     this.minimapToggle?.setPosition(w - 60, 22);
@@ -409,13 +406,6 @@ export class UIScene extends Phaser.Scene {
     if (this.minimapToggle?.isOpen()) this.minimapToggle.updateModalMap();
     this.contextInteractButton?.setTag(this.gameScene.getAdjacentInteractable());
     this.orientationOverlay?.update();
-    if (this.placementGhost && this.placementHotbarIdx !== null) {
-      const tile = this.gameScene.getCurrentPlacementTarget();
-      if (tile) {
-        this.placementGhost.setTarget(tile.tx, tile.ty);
-        this.placementGhost.setValid(tile.valid);
-      }
-    }
   }
 
   private renderShopCompass(): void {

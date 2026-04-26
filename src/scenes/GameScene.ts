@@ -20,8 +20,6 @@ import { GameState, makeGameState, addItem, removeItem, hasItem } from '../state
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
 import { HOTBAR, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
-import { snap8Way } from '../ui/aimMath';
-import { selectAutoAimTarget } from '../ui/autoAim';
 
 export class GameScene extends Phaser.Scene {
   state!: GameState;
@@ -226,18 +224,31 @@ export class GameScene extends Phaser.Scene {
       this.effects.burst(wc.x, wc.y, 0xff4d1a, 30, 180, 900, 1.8);
     });
 
-    // Click-to-interact (desktop only — touch uses the right pad)
+    // Click-to-interact. On touch, the UI scene knows whether the pointer
+    // hits a button / pad / modal — skip those so taps inside the joystick
+    // or on the in-hand bar don't fire a phantom mining action.
     const isTouchClick = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (!isTouchClick) {
-      this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-        sounds.ensure();
-        this.handleTileInteraction(pointer.worldX, pointer.worldY);
-      });
-      this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-        if (!pointer.isDown) return;
-        this.handleTileInteraction(pointer.worldX, pointer.worldY);
-      });
-    }
+    type UIWithProbes = Phaser.Scene & {
+      isPointerOnUI?: (p: Phaser.Input.Pointer) => boolean;
+      hasOpenModal?: () => boolean;
+    };
+    const passesUIFilter = (pointer: Phaser.Input.Pointer): boolean => {
+      if (!isTouchClick) return true;
+      const ui = this.scene.get('UI') as UIWithProbes;
+      if (ui.hasOpenModal?.()) return false;
+      if (ui.isPointerOnUI?.(pointer)) return false;
+      return true;
+    };
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      sounds.ensure();
+      if (!passesUIFilter(pointer)) return;
+      this.handleTileInteraction(pointer.worldX, pointer.worldY);
+    });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!pointer.isDown) return;
+      if (!passesUIFilter(pointer)) return;
+      this.handleTileInteraction(pointer.worldX, pointer.worldY);
+    });
 
     this.input2.events.on('hotbar_select', (slot: number) => {
       this.state.hotbarSlot = slot;
@@ -691,82 +702,6 @@ export class GameScene extends Phaser.Scene {
         this.turrets.push({ tileX: tp.x, tileY: tp.y, kind, cooldownMs: 0, barrel });
       }
     }
-  }
-
-  /**
-   * Touch-input dispatcher. Given a normalized stick direction (sx, sy) and a
-   * `released` flag, runs the active tool's action with a synthesized world
-   * position derived from the stick.
-   */
-  handleAimAction(sx: number, sy: number, released: boolean): void {
-    const act = HOTBAR[this.state.hotbarSlot];
-    if (!act) return;
-    if (act.kind === 'place') return;
-    const snap = snap8Way(sx, sy);
-    if (act.kind === 'throw') {
-      if (!released) return;
-      if (snap === null) return;
-      const targetX = this.player.x + snap.dx * TILE_SIZE * 4;
-      const targetY = this.player.y + snap.dy * TILE_SIZE * 4;
-      this.handleTileInteraction(targetX, targetY);
-      return;
-    }
-    if (released) return;
-    if (snap === null) return;
-    if (act.kind === 'mine' || act.kind === 'hammer') {
-      const playerTile = this.world.worldToTile(this.player.x, this.player.y);
-      const tx = playerTile.x + snap.dx;
-      const ty = playerTile.y + snap.dy;
-      const wc = this.world.tileToWorldCenter(tx, ty);
-      this.handleTileInteraction(wc.x, wc.y);
-      return;
-    }
-    if (act.kind === 'melee') {
-      const targetX = this.player.x + snap.dx * TILE_SIZE;
-      const targetY = this.player.y + snap.dy * TILE_SIZE;
-      this.handleTileInteraction(targetX, targetY);
-      return;
-    }
-    if (act.kind === 'ranged') {
-      const livingZombies = this.zombies.filter((z) => z.alive).map((z) => ({ x: z.sprite.x, y: z.sprite.y }));
-      const target = selectAutoAimTarget(this.player.x, this.player.y, sx, sy, livingZombies, 600);
-      if (target) {
-        this.handleTileInteraction(target.x, target.y);
-      } else {
-        const targetX = this.player.x + sx * TILE_SIZE * 6;
-        const targetY = this.player.y + sy * TILE_SIZE * 6;
-        this.handleTileInteraction(targetX, targetY);
-      }
-      return;
-    }
-  }
-
-  /**
-   * For touch placement mode: returns the tile that the right-pad direction
-   * currently targets, snapped to 8-way and clamped to within reach.
-   * Returns the player's south-adjacent tile if the right pad is at rest.
-   */
-  getCurrentPlacementTarget(): { tx: number; ty: number; valid: boolean } | null {
-    const act = HOTBAR[this.state.hotbarSlot];
-    if (!act || act.kind !== 'place') return null;
-    const ui = this.scene.get('UI') as Phaser.Scene & { aimPad?: { value: { x: number; y: number; active: boolean } } };
-    let snap: { dx: number; dy: number };
-    if (ui.aimPad?.value.active) {
-      const s = snap8Way(ui.aimPad.value.x, ui.aimPad.value.y);
-      snap = s ?? { dx: 0, dy: 1 };
-    } else {
-      snap = { dx: 0, dy: 1 };
-    }
-    const playerTile = this.world.worldToTile(this.player.x, this.player.y);
-    const tx = playerTile.x + snap.dx;
-    const ty = playerTile.y + snap.dy;
-    const tile = this.world.getTileAt(tx, ty);
-    if (!tile) return { tx, ty, valid: false };
-    const wantsWater = act.onto === 'water';
-    const valid = wantsWater
-      ? tile.type === TileType.Water
-      : (tile.type === TileType.Grass || tile.type === TileType.Dirt);
-    return { tx, ty, valid };
   }
 
   /**
