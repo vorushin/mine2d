@@ -20,6 +20,9 @@ import { GameState, makeGameState, addItem, removeItem, hasItem } from '../state
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
 import { HOTBAR, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
+import { snap8Way } from '../ui/aimMath';
+import { selectAutoAimTarget } from '../ui/autoAim';
+import { consumeFood, consumePotion } from '../systems/Consumables';
 
 export class GameScene extends Phaser.Scene {
   state!: GameState;
@@ -224,17 +227,18 @@ export class GameScene extends Phaser.Scene {
       this.effects.burst(wc.x, wc.y, 0xff4d1a, 30, 180, 900, 1.8);
     });
 
-    // Click-to-interact
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      sounds.ensure();
-      if ('ontouchstart' in window && pointer.x < this.scale.width / 2) return;
-      this.handleTileInteraction(pointer.worldX, pointer.worldY);
-    });
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.isDown) return;
-      if ('ontouchstart' in window && pointer.x < this.scale.width / 2) return;
-      this.handleTileInteraction(pointer.worldX, pointer.worldY);
-    });
+    // Click-to-interact (desktop only — touch uses the right pad)
+    const isTouchClick = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isTouchClick) {
+      this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        sounds.ensure();
+        this.handleTileInteraction(pointer.worldX, pointer.worldY);
+      });
+      this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+        if (!pointer.isDown) return;
+        this.handleTileInteraction(pointer.worldX, pointer.worldY);
+      });
+    }
 
     this.input2.events.on('hotbar_select', (slot: number) => {
       this.state.hotbarSlot = slot;
@@ -255,14 +259,9 @@ export class GameScene extends Phaser.Scene {
 
     // P — drink a potion
     this.input.keyboard?.on('keydown-P', () => {
-      if (!hasItem(this.state.inventory, 'potion', 1)) {
-        this.showHint('No potions — buy at shop');
-        return;
-      }
-      removeItem(this.state.inventory, 'potion', 1);
-      const heal = 40;
-      this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + heal);
-      this.popNumber(this.player.x, this.player.y - 20, `+${heal} HP`, '#9effa0');
+      const r = consumePotion(this.state);
+      if (!r.ok) return this.showHint('No potions — buy at shop');
+      this.popNumber(this.player.x, this.player.y - 20, `+${r.healed} HP`, '#9effa0');
       sounds.pickup();
       this.effects.burst(this.player.x, this.player.y, 0xff66aa, 10, 90, 400, 1);
     });
@@ -277,14 +276,9 @@ export class GameScene extends Phaser.Scene {
 
     // F — eat food
     this.input.keyboard?.on('keydown-F', () => {
-      if (!hasItem(this.state.inventory, 'food', 1)) {
-        this.showHint('No food — kill a chicken');
-        return;
-      }
-      removeItem(this.state.inventory, 'food', 1);
-      const heal = 20;
-      this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + heal);
-      this.popNumber(this.player.x, this.player.y - 20, `+${heal} HP yum`, '#ffd166');
+      const r = consumeFood(this.state);
+      if (!r.ok) return this.showHint('No food — kill a chicken');
+      this.popNumber(this.player.x, this.player.y - 20, `+${r.healed} HP yum`, '#ffd166');
       sounds.pickup();
     });
 
@@ -716,6 +710,100 @@ export class GameScene extends Phaser.Scene {
         this.turrets.push({ tileX: tp.x, tileY: tp.y, kind, cooldownMs: 0, barrel });
       }
     }
+  }
+
+  /**
+   * Touch-input dispatcher. Given a normalized stick direction (sx, sy) and a
+   * `released` flag, runs the active tool's action with a synthesized world
+   * position derived from the stick.
+   */
+  handleAimAction(sx: number, sy: number, released: boolean): void {
+    const act = HOTBAR[this.state.hotbarSlot];
+    if (!act) return;
+    if (act.kind === 'place') return;
+    const snap = snap8Way(sx, sy);
+    if (act.kind === 'throw') {
+      if (!released) return;
+      if (snap === null) return;
+      const targetX = this.player.x + snap.dx * TILE_SIZE * 4;
+      const targetY = this.player.y + snap.dy * TILE_SIZE * 4;
+      this.handleTileInteraction(targetX, targetY);
+      return;
+    }
+    if (released) return;
+    if (snap === null) return;
+    if (act.kind === 'mine' || act.kind === 'hammer') {
+      const playerTile = this.world.worldToTile(this.player.x, this.player.y);
+      const tx = playerTile.x + snap.dx;
+      const ty = playerTile.y + snap.dy;
+      const wc = this.world.tileToWorldCenter(tx, ty);
+      this.handleTileInteraction(wc.x, wc.y);
+      return;
+    }
+    if (act.kind === 'melee') {
+      const targetX = this.player.x + snap.dx * TILE_SIZE;
+      const targetY = this.player.y + snap.dy * TILE_SIZE;
+      this.handleTileInteraction(targetX, targetY);
+      return;
+    }
+    if (act.kind === 'ranged') {
+      const livingZombies = this.zombies.filter((z) => z.alive).map((z) => ({ x: z.sprite.x, y: z.sprite.y }));
+      const target = selectAutoAimTarget(this.player.x, this.player.y, sx, sy, livingZombies, 600);
+      if (target) {
+        this.handleTileInteraction(target.x, target.y);
+      } else {
+        const targetX = this.player.x + sx * TILE_SIZE * 6;
+        const targetY = this.player.y + sy * TILE_SIZE * 6;
+        this.handleTileInteraction(targetX, targetY);
+      }
+      return;
+    }
+  }
+
+  /**
+   * For touch placement mode: returns the tile that the right-pad direction
+   * currently targets, snapped to 8-way and clamped to within reach.
+   * Returns the player's south-adjacent tile if the right pad is at rest.
+   */
+  getCurrentPlacementTarget(): { tx: number; ty: number; valid: boolean } | null {
+    const act = HOTBAR[this.state.hotbarSlot];
+    if (!act || act.kind !== 'place') return null;
+    const ui = this.scene.get('UI') as Phaser.Scene & { aimPad?: { value: { x: number; y: number; active: boolean } } };
+    let snap: { dx: number; dy: number };
+    if (ui.aimPad?.value.active) {
+      const s = snap8Way(ui.aimPad.value.x, ui.aimPad.value.y);
+      snap = s ?? { dx: 0, dy: 1 };
+    } else {
+      snap = { dx: 0, dy: 1 };
+    }
+    const playerTile = this.world.worldToTile(this.player.x, this.player.y);
+    const tx = playerTile.x + snap.dx;
+    const ty = playerTile.y + snap.dy;
+    const tile = this.world.getTileAt(tx, ty);
+    if (!tile) return { tx, ty, valid: false };
+    const wantsWater = act.onto === 'water';
+    const valid = wantsWater
+      ? tile.type === TileType.Water
+      : (tile.type === TileType.Grass || tile.type === TileType.Dirt);
+    return { tx, ty, valid };
+  }
+
+  /**
+   * For touch UI: returns a brief tag identifying an interactable tile the
+   * player is adjacent to (within a 1-tile radius), or null.
+   */
+  getAdjacentInteractable(): 'shop' | 'bench' | 'door' | null {
+    const p = this.world.worldToTile(this.player.x, this.player.y);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const t = this.world.getTileAt(p.x + dx, p.y + dy);
+        if (!t) continue;
+        if (t.type === TileType.ShopNPC) return 'shop';
+        if (t.type === TileType.CraftingBench) return 'bench';
+        if (t.type === TileType.DoorWood || t.type === TileType.DoorIron) return 'door';
+      }
+    }
+    return null;
   }
 
   private resolveBombExplosion(tx: number, ty: number): void {

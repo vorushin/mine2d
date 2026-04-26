@@ -3,8 +3,6 @@ import { WORLD_WIDTH, WORLD_HEIGHT, TILE_SIZE } from '../config';
 import { GameScene } from '../scenes/GameScene';
 import { TileType } from '../world/tileTypes';
 
-const MAP_SIZE = 140;
-
 /**
  * Tiny minimap: a static canvas of the world (ground types) painted once,
  * plus live dots for player, dog, zombies, shop, cake drawn each frame.
@@ -18,13 +16,15 @@ export class Minimap {
   private bg: Phaser.GameObjects.Rectangle;
   private border: Phaser.GameObjects.Rectangle;
   private label: Phaser.GameObjects.Text;
+  private mapSize: number;
 
-  constructor(scene: Phaser.Scene, gameScene: GameScene) {
+  constructor(scene: Phaser.Scene, gameScene: GameScene, mapSize = 140) {
     this.scene = scene;
     this.gameScene = gameScene;
+    this.mapSize = mapSize;
     this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(700);
-    this.bg = scene.add.rectangle(0, 0, MAP_SIZE + 8, MAP_SIZE + 22, 0x1a1c22, 0.88).setOrigin(1, 1);
-    this.border = scene.add.rectangle(0, 0, MAP_SIZE + 8, MAP_SIZE + 22, 0, 0).setStrokeStyle(1, 0x88aaff, 0.6).setOrigin(1, 1);
+    this.bg = scene.add.rectangle(0, 0, this.mapSize + 8, this.mapSize + 22, 0x1a1c22, 0.88).setOrigin(1, 1);
+    this.border = scene.add.rectangle(0, 0, this.mapSize + 8, this.mapSize + 22, 0, 0).setStrokeStyle(1, 0x88aaff, 0.6).setOrigin(1, 1);
     this.label = scene.add.text(0, 0, 'MAP', {
       fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: '#9eb0c4', fontStyle: 'bold',
     }).setOrigin(1, 1);
@@ -36,7 +36,7 @@ export class Minimap {
   }
 
   private paintStatic(): void {
-    const cell = MAP_SIZE / WORLD_WIDTH;
+    const cell = this.mapSize / WORLD_WIDTH;
     this.staticLayer.clear();
     for (let y = 0; y < WORLD_HEIGHT; y++) {
       for (let x = 0; x < WORLD_WIDTH; x++) {
@@ -67,7 +67,7 @@ export class Minimap {
   private repaintTimer = 0;
 
   update(): void {
-    const cell = MAP_SIZE / WORLD_WIDTH;
+    const cell = this.mapSize / WORLD_WIDTH;
     this.dynamicLayer.clear();
 
     // Repaint static layer every half-second (handles meteor craters, lava spread)
@@ -83,9 +83,6 @@ export class Minimap {
       this.dynamicLayer.fillStyle(0xffd700, 1);
       this.dynamicLayer.fillRect(shop.x * cell - 2, shop.y * cell - 2, 4, 4);
     }
-
-    // Cake — find via tile scan (rare)
-    // Skip — it's an Easter egg, let player find it.
 
     // Player
     const p = this.gameScene.world.worldToTile(this.gameScene.player.x, this.gameScene.player.y);
@@ -115,13 +112,25 @@ export class Minimap {
     const w = this.scene.scale.width;
     const pad = 10;
     this.container.setPosition(w - pad, this.scene.scale.height - 130);
-    // bg/border origin is (1,1) so positioned at container origin = bottom-right corner
     this.bg.setPosition(0, 0);
     this.border.setPosition(0, 0);
-    this.label.setPosition(-MAP_SIZE + 10, -MAP_SIZE - 4);
-    // static and dynamic layers drawn from top-left of the minimap region
-    this.staticLayer.setPosition(-MAP_SIZE - 4, -MAP_SIZE - 4);
-    this.dynamicLayer.setPosition(-MAP_SIZE - 4, -MAP_SIZE - 4);
+    this.label.setPosition(-this.mapSize + 10, -this.mapSize - 4);
+    this.staticLayer.setPosition(-this.mapSize - 4, -this.mapSize - 4);
+    this.dynamicLayer.setPosition(-this.mapSize - 4, -this.mapSize - 4);
+  }
+
+  /**
+   * Position the minimap container at an explicit (x, y) in screen space
+   * (top-right corner of the rendered region). Used by MinimapToggle's
+   * larger modal view.
+   */
+  layoutAt(x: number, y: number): void {
+    this.container.setPosition(x, y);
+    this.bg.setPosition(0, 0);
+    this.border.setPosition(0, 0);
+    this.label.setPosition(-this.mapSize + 10, -this.mapSize - 4);
+    this.staticLayer.setPosition(-this.mapSize - 4, -this.mapSize - 4);
+    this.dynamicLayer.setPosition(-this.mapSize - 4, -this.mapSize - 4);
   }
 
   destroy(): void {

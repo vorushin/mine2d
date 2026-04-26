@@ -2,7 +2,15 @@ import Phaser from 'phaser';
 import { GameScene } from './GameScene';
 import { HOTBAR, HotbarAction, hotbarAvailable } from '../ui/hotbarDef';
 import { GameState, hasItem } from '../state/GameState';
+import { consumeFood, consumePotion } from '../systems/Consumables';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
+import { AimPad } from '../ui/AimPad';
+import { InHandBar } from '../ui/InHandBar';
+import { BuildPicker } from '../ui/BuildPicker';
+import { PlacementGhost } from '../ui/PlacementGhost';
+import { MinimapToggle } from '../ui/MinimapToggle';
+import { InteractButton } from '../ui/InteractButton';
+import { OrientationOverlay } from '../ui/OrientationOverlay';
 import { Modal } from '../ui/ShopModal';
 import { HelpOverlay } from '../ui/HelpOverlay';
 import { Minimap } from '../ui/Minimap';
@@ -30,9 +38,16 @@ export class UIScene extends Phaser.Scene {
   private invPanel!: Phaser.GameObjects.Container;
   private invChips: { bg: Phaser.GameObjects.Rectangle; swatch: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text; key: string }[] = [];
   private joystick?: VirtualJoystick;
+  aimPad?: AimPad;
+  private inHandBar?: InHandBar;
+  private buildPicker: BuildPicker | null = null;
+  private placementGhost: PlacementGhost | null = null;
+  private placementHotbarIdx: number | null = null;
+  private prePlacementHotbarSlot: number | null = null;
+  private minimapToggle?: MinimapToggle;
+  private contextInteractButton?: InteractButton;
+  private orientationOverlay?: OrientationOverlay;
   private modal: Modal | null = null;
-  private attackButton?: Phaser.GameObjects.Arc;
-  private interactButton?: Phaser.GameObjects.Arc;
   private skipNightButton?: Phaser.GameObjects.Rectangle;
   private shopCompass?: Phaser.GameObjects.Container;
   private minimap?: Minimap;
@@ -54,18 +69,51 @@ export class UIScene extends Phaser.Scene {
     this.buildHud();
     this.buildHelpButton();
     this.buildShopCompass();
-    this.minimap = new Minimap(this, this.gameScene);
     this.buildBossHpBar();
 
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isTouch) {
+      this.minimap = new Minimap(this, this.gameScene);
+    }
     if (isTouch) {
-      this.joystick = new VirtualJoystick(this);
+      this.joystick = new VirtualJoystick(this, 80, this.scale.height - 80, 60);
+      this.aimPad = new AimPad(this, this.scale.width - 80, this.scale.height - 80, 60);
       this.time.addEvent({
         delay: 16,
         loop: true,
         callback: () => this.gameScene.input2.setJoystickVector({ x: this.joystick!.value.x, y: this.joystick!.value.y }),
       });
-      this.buildTouchButtons();
+      this.aimPad.events.on('change', (x: number, y: number) => {
+        this.gameScene.handleAimAction(x, y, false);
+      });
+      this.aimPad.events.on('release', (x: number, y: number) => {
+        this.gameScene.handleAimAction(x, y, true);
+      });
+      this.time.addEvent({
+        delay: 60,
+        loop: true,
+        callback: () => {
+          if (this.aimPad?.value.active) {
+            this.gameScene.handleAimAction(this.aimPad.value.x, this.aimPad.value.y, false);
+          }
+        },
+      });
+      this.buildSkipNightButton();
+      this.inHandBar = new InHandBar(this, this.state, {
+        onSelectTool: (hotbarIdx) => {
+          if (this.placementHotbarIdx !== null) this.exitPlacementMode();
+          this.state.hotbarSlot = hotbarIdx;
+          this.events.emit('hotbar_changed');
+          this.gameScene.refreshPlayerWeapon();
+        },
+        onBuildPressed: () => this.openBuildPicker(),
+        onCancelPressed: () => this.exitPlacementMode(),
+        onPlacePressed: () => this.commitPlacement(),
+      });
+      this.hotbarContainer.setVisible(false);
+      this.minimapToggle = new MinimapToggle(this, this.gameScene);
+      this.contextInteractButton = new InteractButton(this, () => this.gameScene.handleInteractPressed());
+      this.orientationOverlay = new OrientationOverlay(this);
     }
 
     this.events.on('hotbar_changed', () => this.renderHotbar());
@@ -217,27 +265,62 @@ export class UIScene extends Phaser.Scene {
       }).setOrigin(0, 0.5);
       this.invPanel.add([bg, swatch, text]);
       this.invChips.push({ bg, swatch, text, key: it.key });
+      if (it.key === 'food' || it.key === 'potion') {
+        bg.setInteractive({ useHandCursor: true });
+        bg.on('pointerdown', () => {
+          if (!this.joystick) return; // touch only
+          const r = it.key === 'food' ? consumeFood(this.state) : consumePotion(this.state);
+          if (r.ok) {
+            this.gameScene.popNumber(this.gameScene.player.x, this.gameScene.player.y - 20, `+${r.healed} HP`, '#9effa0');
+          }
+        });
+      }
     }
   }
 
-  private buildTouchButtons(): void {
-    this.attackButton = this.add.circle(0, 0, 44, 0xff4d4d, 0.28).setScrollFactor(0).setDepth(1000);
-    this.attackButton.setStrokeStyle(2, 0xffffff, 0.5);
-    this.attackButton.setInteractive();
-    this.attackButton.on('pointerdown', () => {
-      // Auto-target nearest zombie if any within reach; otherwise fire in facing direction (for ranged)
-      const zs = this.gameScene.zombies.filter((z) => z.alive);
-      if (zs.length === 0) return;
-      zs.sort((a, b) => a.distanceToPlayer(this.gameScene.player) - b.distanceToPlayer(this.gameScene.player));
-      const target = zs[0];
-      this.gameScene.handleTileInteraction(target.sprite.x, target.sprite.y);
+  private openBuildPicker(): void {
+    if (this.buildPicker) return;
+    this.buildPicker = new BuildPicker(this, this.state, {
+      onSelect: (hotbarIdx) => this.enterPlacementMode(hotbarIdx),
+      onClose: () => { this.buildPicker?.destroy(); this.buildPicker = null; },
     });
+  }
 
-    this.interactButton = this.add.circle(0, 0, 36, 0xffcc66, 0.28).setScrollFactor(0).setDepth(1000);
-    this.interactButton.setStrokeStyle(2, 0xffffff, 0.5);
-    this.interactButton.setInteractive();
-    this.interactButton.on('pointerdown', () => this.gameScene.handleInteractPressed());
+  private enterPlacementMode(hotbarIdx: number): void {
+    this.buildPicker?.destroy();
+    this.buildPicker = null;
+    this.prePlacementHotbarSlot = this.state.hotbarSlot;
+    this.placementHotbarIdx = hotbarIdx;
+    this.state.hotbarSlot = hotbarIdx;
+    this.gameScene.refreshPlayerWeapon();
+    const act = HOTBAR[hotbarIdx];
+    this.placementGhost = new PlacementGhost(this.gameScene, act.color);
+    this.inHandBar?.setPlacementMode(true);
+  }
 
+  private exitPlacementMode(): void {
+    if (this.placementHotbarIdx === null) return;
+    this.placementGhost?.destroy();
+    this.placementGhost = null;
+    this.placementHotbarIdx = null;
+    if (this.prePlacementHotbarSlot !== null) {
+      this.state.hotbarSlot = this.prePlacementHotbarSlot;
+      this.prePlacementHotbarSlot = null;
+      this.gameScene.refreshPlayerWeapon();
+      this.events.emit('hotbar_changed');
+    }
+    this.inHandBar?.setPlacementMode(false);
+  }
+
+  private commitPlacement(): void {
+    if (this.placementHotbarIdx === null) return;
+    const tile = this.gameScene.getCurrentPlacementTarget();
+    if (!tile || !tile.valid) return;
+    const wc = this.gameScene.world.tileToWorldCenter(tile.tx, tile.ty);
+    this.gameScene.handleTileInteraction(wc.x, wc.y);
+  }
+
+  private buildSkipNightButton(): void {
     this.skipNightButton = this.add.rectangle(0, 0, 96, 28, 0x26334a, 0.85).setScrollFactor(0).setDepth(1000);
     this.skipNightButton.setStrokeStyle(1, 0x88aaff, 0.6);
     this.skipNightButton.setInteractive({ useHandCursor: true });
@@ -283,22 +366,50 @@ export class UIScene extends Phaser.Scene {
     this.phaseLabel.setPosition(w / 2, 22);
     this.nightLabel.setPosition(w - 20, 12);
 
-    // Inventory chips laid out under HP bar on the left
-    const invStartX = 18;
-    const invStartY = 52;
-    for (let i = 0; i < this.invChips.length; i++) {
-      const chip = this.invChips[i];
-      const cx = invStartX + i * 62;
-      chip.bg.setPosition(cx, invStartY);
-      chip.swatch.setPosition(cx + 6, invStartY);
-      chip.text.setPosition(cx + 20, invStartY);
+    // Inventory chips: a single horizontal row on desktop, a 3-column grid
+    // on touch (saves horizontal space for the top HUD elements).
+    const isTouchHud = !!this.joystick;
+    if (isTouchHud) {
+      const cols = 3;
+      const startX = 18;
+      const startY = 52;
+      const chipW = 60;
+      const chipH = 22;
+      for (let i = 0; i < this.invChips.length; i++) {
+        const chip = this.invChips[i];
+        const r = Math.floor(i / cols);
+        const c = i % cols;
+        const cx = startX + c * (chipW + 4);
+        const cy = startY + r * (chipH + 4);
+        chip.bg.setPosition(cx, cy);
+        chip.swatch.setPosition(cx + 6, cy);
+        chip.text.setPosition(cx + 20, cy);
+      }
+    } else {
+      const invStartX = 18;
+      const invStartY = 52;
+      for (let i = 0; i < this.invChips.length; i++) {
+        const chip = this.invChips[i];
+        const cx = invStartX + i * 62;
+        chip.bg.setPosition(cx, invStartY);
+        chip.swatch.setPosition(cx + 6, invStartY);
+        chip.text.setPosition(cx + 20, invStartY);
+      }
     }
 
-    if (this.helpButton) this.helpButton.setPosition(22, h - cellH - 34);
+    if (this.helpButton) {
+      if (isTouchHud) this.helpButton.setPosition(this.scale.width - 90, 22);
+      else this.helpButton.setPosition(22, h - cellH - 34);
+    }
+    if (this.joystick) this.joystick.setPosition(80, h - 80);
+    if (this.aimPad) this.aimPad.setPosition(w - 80, h - 80);
+    this.inHandBar?.layout();
     this.minimap?.layout();
+    this.minimapToggle?.setPosition(w - 60, 22);
+    if (this.contextInteractButton) {
+      this.contextInteractButton.setPosition(w - 80, h - 80 - 80);
+    }
 
-    if (this.attackButton) this.attackButton.setPosition(w - 60, h - cellH - 80);
-    if (this.interactButton) this.interactButton.setPosition(w - 130, h - cellH - 50);
     if (this.skipNightButton) {
       this.skipNightButton.setPosition(w - 64, 44);
       const t = this.skipNightButton.getData('text') as Phaser.GameObjects.Text;
@@ -309,10 +420,22 @@ export class UIScene extends Phaser.Scene {
   update(): void {
     this.renderHud();
     this.renderHotbar();
+    this.inHandBar?.render();
     this.renderInventory();
     this.renderShopCompass();
     this.renderBossHpBar();
     this.minimap?.update();
+    this.minimapToggle?.update();
+    if (this.minimapToggle?.isOpen()) this.minimapToggle.updateModalMap();
+    this.contextInteractButton?.setTag(this.gameScene.getAdjacentInteractable());
+    this.orientationOverlay?.update();
+    if (this.placementGhost && this.placementHotbarIdx !== null) {
+      const tile = this.gameScene.getCurrentPlacementTarget();
+      if (tile) {
+        this.placementGhost.setTarget(tile.tx, tile.ty);
+        this.placementGhost.setValid(tile.valid);
+      }
+    }
   }
 
   private renderShopCompass(): void {
