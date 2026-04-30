@@ -48,4 +48,12 @@ describe('buildPickerCells', () => {
     expect(cells.map((c) => c.label)[0]).toBe('Wall W');
     expect(cells.map((c) => c.label)[9]).toBe('T Flame');
   });
+
+  it('includes compact resource requirements for each cell', () => {
+    const state = makeGameState();
+    const cells = buildPickerCells(state);
+    expect(cells.find((c) => c.label === 'Wall W')?.costLabel).toBe('2W');
+    expect(cells.find((c) => c.label === 'Turret')?.costLabel).toBe('5W 5S 3I');
+    expect(cells.find((c) => c.label === 'T Flame')?.costLabel).toBe('1F-Turret');
+  });
 });

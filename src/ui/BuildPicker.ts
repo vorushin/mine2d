@@ -25,7 +25,12 @@ export class BuildPicker {
   private container: Phaser.GameObjects.Container;
   private backdrop: Phaser.GameObjects.Rectangle;
   private panel: Phaser.GameObjects.Rectangle;
-  private cells: { bg: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text; data: BuildPickerCell }[] = [];
+  private cells: {
+    bg: Phaser.GameObjects.Rectangle;
+    label: Phaser.GameObjects.Text;
+    cost: Phaser.GameObjects.Text;
+    data: BuildPickerCell;
+  }[] = [];
   private closeBtn: Phaser.GameObjects.Rectangle;
   private closeLabel: Phaser.GameObjects.Text;
 
@@ -59,13 +64,16 @@ export class BuildPicker {
       const label = scene.add.text(0, 0, data.label, {
         fontFamily: 'system-ui', fontSize: '11px', color: data.available ? '#fff' : '#888', fontStyle: 'bold',
       }).setOrigin(0.5).setScrollFactor(0);
+      const cost = scene.add.text(0, 0, data.costLabel, {
+        fontFamily: 'ui-monospace, monospace', fontSize: '9px', color: data.available ? '#ffec99' : '#777',
+      }).setOrigin(0.5).setScrollFactor(0);
       bg.setInteractive({ useHandCursor: true });
       bg.on('pointerdown', () => {
         if (!data.available) return;
         this.cb.onSelect(data.hotbarIndex);
       });
-      this.cells.push({ bg, label, data });
-      this.container.add([bg, label]);
+      this.cells.push({ bg, label, cost, data });
+      this.container.add([bg, label, cost]);
     }
 
     this.closeBtn = scene.add.rectangle(0, 0, 96, 24, 0x4a2030, 0.92)
@@ -99,7 +107,8 @@ export class BuildPicker {
       const cx = startX + col * (CELL_W + GAP);
       const cy = startY + r * (CELL_H + GAP);
       this.cells[i].bg.setPosition(cx, cy);
-      this.cells[i].label.setPosition(cx, cy + CELL_H / 2 - 10);
+      this.cells[i].label.setPosition(cx, cy + CELL_H / 2 - 20);
+      this.cells[i].cost.setPosition(cx, cy + CELL_H / 2 - 8);
     }
     this.closeBtn.setPosition(panelX, panelY + panelH / 2 - 14);
     this.closeLabel.setPosition(panelX, panelY + panelH / 2 - 14);
