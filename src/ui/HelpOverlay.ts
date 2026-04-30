@@ -22,8 +22,8 @@ const CONTROLS: [string, string][] = [
 ];
 
 const EVENTS: [string, string][] = [
-  ['🐶 Rex', 'Your companion — levels up with kills'],
-  ['🐔 Chickens', 'Cosmetic — wander the world'],
+  ['🐶 Rex', 'Your companion — helps fight and revives at dawn'],
+  ['🐔 Chickens', 'Harmless wildlife. Golden chickens drop gold if caught'],
   ['🌉 Bridge', 'Place on water to walk across the lake'],
   ['🔥 Torch', 'Damages zombies at night in a small radius'],
   ['🏕 Campfire', 'Heal faster when you stand next to it'],
@@ -32,7 +32,7 @@ const EVENTS: [string, string][] = [
   ['🌋 Volcano', 'Grows lava each day. Break with iron pickaxe'],
   ['🩸 Blood Moon', 'Every 5th night — +50% loot'],
   ['⚡ Lightning', 'During rain — blasts zombies near the bolt'],
-  ['✨ Golden Chicken', 'Rare — worth 12 gold'],
+  ['✨ Golden Chicken', 'Rare shiny chicken — catch for 12 gold'],
   ['🏆 Boss', 'Every 5 nights — drops massive loot + fireworks'],
 ];
 

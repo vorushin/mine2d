@@ -5,9 +5,13 @@ import { Zombie } from './Zombie';
 import { TEX } from '../gfx/textures';
 import { TILE_SIZE } from '../config';
 
+const REX_BASE_BITE_DAMAGE = 8;
+const REX_BITE_DAMAGE_PER_LEVEL = 3;
+const REX_KILLS_PER_LEVEL = 6;
+
 /**
  * Rex — the loyal companion dog. Trails the player, darts toward nearby zombies,
- * bites them, has his own HP so he won't die instantly in a swarm. Non-respawning.
+ * bites them, has his own HP so he won't die instantly in a swarm. Revives at dawn.
  */
 export class Dog {
   readonly sprite: Phaser.GameObjects.Image;
@@ -41,13 +45,13 @@ export class Dog {
   }
 
   get biteDamage(): number {
-    return 12 + (this.level - 1) * 4;
+    return REX_BASE_BITE_DAMAGE + (this.level - 1) * REX_BITE_DAMAGE_PER_LEVEL;
   }
 
   /** Called when Rex lands a killing blow. Scales up his power. */
   recordKill(): void {
     this.kills += 1;
-    const newLevel = 1 + Math.floor(this.kills / 4);
+    const newLevel = 1 + Math.floor(this.kills / REX_KILLS_PER_LEVEL);
     if (newLevel > this.level) {
       this.level = newLevel;
       this.showLevelPopup();

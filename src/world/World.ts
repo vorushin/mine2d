@@ -44,6 +44,7 @@ export class World {
   private scene: Phaser.Scene;
   private tileObjects: Map<number, Phaser.GameObjects.GameObject> = new Map();
   private hpBars: Map<number, Phaser.GameObjects.Rectangle> = new Map();
+  private damageOverlays: Map<number, Phaser.GameObjects.Image> = new Map();
   readonly events = new Phaser.Events.EventEmitter();
 
   constructor(scene: Phaser.Scene, source: number | GeneratedWorld) {
@@ -58,13 +59,7 @@ export class World {
     for (let y = 0; y < WORLD_HEIGHT; y++) {
       for (let x = 0; x < WORLD_WIDTH; x++) {
         const t = this.tiles[y][x];
-        const texKey =
-          t.type === TileType.Dirt ? TEX.dirt :
-          t.type === TileType.Water ? TEX.water :
-          t.type === TileType.Sand ? TEX.sand :
-          t.type === TileType.FlowerField ? TEX.flower_field :
-          t.type === TileType.Crater ? TEX.crater :
-          TEX.grass_tuft;
+        const texKey = this.groundTextureFor(t.type, x, y);
         const ground = this.scene.add.image(
           x * TILE_SIZE + TILE_SIZE / 2,
           y * TILE_SIZE + TILE_SIZE / 2,
@@ -100,6 +95,19 @@ export class World {
     return y * WORLD_WIDTH + x;
   }
 
+  private groundTextureFor(type: TileType, x: number, y: number): string {
+    const h = Math.abs((x * 73856093) ^ (y * 19349663));
+    if (type === TileType.Dirt) return h % 3 === 0 ? TEX.dirt_2 : TEX.dirt;
+    if (type === TileType.Sand) return h % 2 === 0 ? TEX.sand : TEX.sand_2;
+    if (type === TileType.Water) return TEX.water;
+    if (type === TileType.FlowerField) return TEX.flower_field;
+    if (type === TileType.Crater) return TEX.crater;
+    if (type === TileType.Lava) return TEX.lava;
+    if (h % 5 === 0) return TEX.grass_tuft_3;
+    if (h % 3 === 0) return TEX.grass_tuft_2;
+    return TEX.grass_tuft;
+  }
+
   private spawnObject(x: number, y: number): void {
     const t = this.tiles[y][x];
     const texKey = TEXTURE_FOR[t.type];
@@ -110,6 +118,8 @@ export class World {
 
     const img = this.scene.add.image(cx, cy, texKey);
     img.setDepth(depthFor(t.type));
+    const shadow = this.makeObjectShadow(t.type, cx, cy);
+    if (shadow) img.setData('shadow', shadow);
 
     if (t.type === TileType.Tree) {
       // Tree taller than 32 — anchor bottom at tile bottom
@@ -244,6 +254,28 @@ export class World {
     }
 
     this.tileObjects.set(this.key(x, y), img);
+    this.updateDamageOverlay(x, y, t);
+  }
+
+  private makeObjectShadow(type: TileType, cx: number, cy: number): Phaser.GameObjects.Ellipse | null {
+    if (type === TileType.Torch || type === TileType.Lava || type === TileType.Bridge) return null;
+    let w = 22;
+    let h = 6;
+    let y = cy + 10;
+    if (type === TileType.Tree || type === TileType.DeadTree) {
+      w = 28; h = 8; y = cy + 14;
+    } else if (type === TileType.Volcano) {
+      w = 34; h = 10; y = cy + 12;
+    } else if (type === TileType.WallWood || type === TileType.WallStone || type === TileType.WallIron || type === TileType.WallReinforced) {
+      w = 30; h = 8; y = cy + 12;
+    } else if (type === TileType.ShopNPC) {
+      w = 20; h = 6; y = cy + 11;
+    } else if (type === TileType.Cake || type === TileType.Mushroom) {
+      w = 16; h = 4; y = cy + 10;
+    }
+    const shadow = this.scene.add.ellipse(cx + 1, y, w, h, 0x000000, 0.24);
+    shadow.setDepth(Math.max(0.6, depthFor(type) - 0.4));
+    return shadow;
   }
 
   getTileAt(x: number, y: number): Tile | null {
@@ -274,6 +306,7 @@ export class World {
     if (!t || !isBreakable(t.type)) return false;
     t.hp -= amount;
     this.updateHpBar(x, y, t);
+    this.updateDamageOverlay(x, y, t);
     this.flashTile(x, y);
     opts?.onDamage?.();
     if (t.hp <= 0) {
@@ -337,6 +370,40 @@ export class World {
     }
   }
 
+  private updateDamageOverlay(x: number, y: number, t: Tile): void {
+    const key = this.key(x, y);
+    const existing = this.damageOverlays.get(key);
+    const spec = TILE_SPECS[t.type];
+    if (spec.baseHp <= 0 || !usesDamageOverlay(t.type)) {
+      if (existing) {
+        existing.destroy();
+        this.damageOverlays.delete(key);
+      }
+      return;
+    }
+
+    const pct = Math.max(0, t.hp) / spec.baseHp;
+    if (pct >= 0.72) {
+      if (existing) {
+        existing.destroy();
+        this.damageOverlays.delete(key);
+      }
+      return;
+    }
+
+    const texture = pct < 0.36 ? TEX.crack_heavy : TEX.crack_light;
+    const depth = depthFor(t.type) + 0.12;
+    if (existing) {
+      existing.setTexture(texture);
+      existing.setDepth(depth);
+      return;
+    }
+    const overlay = this.scene.add.image(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, texture);
+    overlay.setDepth(depth);
+    overlay.setAlpha(0.9);
+    this.damageOverlays.set(key, overlay);
+  }
+
   placeTile(x: number, y: number, type: TileType): boolean {
     const t = this.getTileAt(x, y);
     if (!t) return false;
@@ -360,8 +427,17 @@ export class World {
     if (obj) {
       const glow = obj.getData('glow') as Phaser.GameObjects.Arc | undefined;
       if (glow) glow.destroy();
+      const shadow = obj.getData('shadow') as Phaser.GameObjects.Ellipse | undefined;
+      if (shadow) shadow.destroy();
+      const smoke = obj.getData('smoke') as Phaser.GameObjects.Particles.ParticleEmitter | undefined;
+      if (smoke) smoke.destroy();
       obj.destroy();
       this.tileObjects.delete(key);
+    }
+    const damageOverlay = this.damageOverlays.get(key);
+    if (damageOverlay) {
+      damageOverlay.destroy();
+      this.damageOverlays.delete(key);
     }
     const bar = this.hpBars.get(key);
     if (bar) {
@@ -415,14 +491,7 @@ export class World {
   forceRedrawGround(x: number, y: number): void {
     const t = this.getTileAt(x, y);
     if (!t) return;
-    const texKey =
-      t.type === TileType.Dirt ? TEX.dirt :
-      t.type === TileType.Water ? TEX.water :
-      t.type === TileType.Sand ? TEX.sand :
-      t.type === TileType.FlowerField ? TEX.flower_field :
-      t.type === TileType.Crater ? TEX.crater :
-      t.type === TileType.Lava ? TEX.lava :
-      TEX.grass_tuft;
+    const texKey = this.groundTextureFor(t.type, x, y);
     const ground = this.scene.add.image(
       x * TILE_SIZE + TILE_SIZE / 2,
       y * TILE_SIZE + TILE_SIZE / 2,
@@ -461,4 +530,18 @@ function depthFor(type: TileType): number {
     default:
       return 3;
   }
+}
+
+function usesDamageOverlay(type: TileType): boolean {
+  return (
+    type === TileType.WallWood ||
+    type === TileType.WallStone ||
+    type === TileType.WallIron ||
+    type === TileType.WallReinforced ||
+    type === TileType.DoorWood ||
+    type === TileType.TurretBasic ||
+    type === TileType.TurretFlame ||
+    type === TileType.SupplyCrate ||
+    type === TileType.Bridge
+  );
 }

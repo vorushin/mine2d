@@ -200,7 +200,7 @@ export class GameScene extends Phaser.Scene {
           if (this.world.isWalkable(tx, ty)) {
             const wc = this.world.tileToWorldCenter(tx, ty);
             this.chickens.push(new Chicken(this, this.world, wc.x, wc.y, true));
-            this.showHint('✨ A golden chicken is somewhere today!');
+            this.showHint('✨ Golden chicken: catch it for 12 gold!');
             break;
           }
         }

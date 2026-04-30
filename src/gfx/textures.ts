@@ -9,7 +9,10 @@ import Phaser from 'phaser';
 export const TEX = {
   player: 'player',
   grass_tuft: 'grass_tuft',
+  grass_tuft_2: 'grass_tuft_2',
+  grass_tuft_3: 'grass_tuft_3',
   dirt: 'dirt',
+  dirt_2: 'dirt_2',
   tree: 'tree',
   stone: 'stone',
   iron_ore: 'iron_ore',
@@ -33,6 +36,7 @@ export const TEX = {
   particle: 'particle',
   water: 'water',
   sand: 'sand',
+  sand_2: 'sand_2',
   dead_tree: 'dead_tree',
   campfire: 'campfire',
   cake: 'cake',
@@ -52,6 +56,8 @@ export const TEX = {
   crater: 'crater',
   meteor: 'meteor',
   bridge: 'bridge',
+  crack_light: 'crack_light',
+  crack_heavy: 'crack_heavy',
 } as const;
 
 export function generateAllTextures(scene: Phaser.Scene): void {
@@ -90,12 +96,39 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillRect(3, 5, 1, 1); g.fillRect(19, 21, 1, 1); g.fillRect(27, 9, 1, 1);
   });
 
+  make(scene, TEX.grass_tuft_2, 32, 32, (g) => {
+    g.fillStyle(0x55b655, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x459945, 1);
+    g.fillRect(5, 24, 3, 2); g.fillRect(20, 5, 2, 4); g.fillRect(27, 20, 2, 2);
+    g.fillRect(13, 12, 2, 3); g.fillRect(2, 9, 2, 2);
+    g.fillStyle(0x72d972, 1);
+    g.fillRect(6, 23, 1, 1); g.fillRect(21, 4, 1, 1); g.fillRect(14, 11, 1, 1);
+  });
+
+  make(scene, TEX.grass_tuft_3, 32, 32, (g) => {
+    g.fillStyle(0x61c45f, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x4aa54a, 1);
+    g.fillRect(7, 7, 2, 5); g.fillRect(15, 25, 3, 2); g.fillRect(25, 14, 3, 2);
+    g.fillRect(3, 18, 2, 2); g.fillRect(20, 18, 2, 3);
+    g.fillStyle(0x83e083, 1);
+    g.fillRect(8, 6, 1, 1); g.fillRect(16, 24, 1, 1); g.fillRect(26, 13, 1, 1);
+  });
+
   make(scene, TEX.dirt, 32, 32, (g) => {
     g.fillStyle(0x7a4a2b, 1); g.fillRect(0, 0, 32, 32);
     g.fillStyle(0x644020, 1);
     g.fillRect(4, 4, 2, 2); g.fillRect(20, 8, 2, 2); g.fillRect(10, 22, 2, 2); g.fillRect(24, 24, 2, 2);
     g.fillStyle(0x8d5d3e, 1);
     g.fillRect(14, 10, 1, 1); g.fillRect(6, 18, 1, 1); g.fillRect(26, 14, 1, 1);
+  });
+
+  make(scene, TEX.dirt_2, 32, 32, (g) => {
+    g.fillStyle(0x704326, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x59351e, 1);
+    g.fillRect(3, 9, 4, 1); g.fillRect(16, 18, 5, 1); g.fillRect(24, 6, 3, 2);
+    g.fillRect(8, 25, 3, 2); g.fillRect(20, 27, 2, 1);
+    g.fillStyle(0x91603d, 1);
+    g.fillRect(12, 6, 1, 1); g.fillRect(28, 18, 1, 1); g.fillRect(5, 21, 1, 1);
   });
 
   make(scene, TEX.tree, 32, 38, (g) => {
@@ -453,6 +486,15 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillRect(12, 12, 1, 1); g.fillRect(22, 18, 1, 1); g.fillRect(6, 26, 1, 1);
   });
 
+  make(scene, TEX.sand_2, 32, 32, (g) => {
+    g.fillStyle(0xddca7a, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0xc3ad58, 1);
+    g.fillRect(4, 15, 5, 1); g.fillRect(17, 8, 4, 1); g.fillRect(23, 24, 4, 1);
+    g.fillRect(11, 4, 1, 2); g.fillRect(28, 12, 1, 2); g.fillRect(7, 27, 2, 1);
+    g.fillStyle(0xf1dfa2, 1);
+    g.fillRect(5, 14, 1, 1); g.fillRect(19, 7, 1, 1); g.fillRect(24, 23, 1, 1);
+  });
+
   make(scene, TEX.dead_tree, 32, 38, (g) => {
     g.fillStyle(0x4a3010, 1); g.fillRect(14, 14, 4, 20);
     g.fillStyle(0x6b4423, 1); g.fillRect(14, 14, 1, 20);
@@ -695,6 +737,32 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillRect(3, 6, 1, 1); g.fillRect(15, 6, 1, 1); g.fillRect(28, 6, 1, 1);
     g.fillRect(3, 16, 1, 1); g.fillRect(15, 16, 1, 1); g.fillRect(28, 16, 1, 1);
     g.fillRect(3, 26, 1, 1); g.fillRect(15, 26, 1, 1); g.fillRect(28, 26, 1, 1);
+  });
+
+  make(scene, TEX.crack_light, 32, 32, (g) => {
+    g.fillStyle(0x120d0a, 0.72);
+    g.fillRect(15, 7, 1, 7);
+    g.fillRect(16, 13, 5, 1);
+    g.fillRect(20, 14, 1, 5);
+    g.fillRect(9, 18, 7, 1);
+    g.fillRect(9, 19, 1, 5);
+    g.fillStyle(0xffffff, 0.18);
+    g.fillRect(14, 7, 1, 5);
+    g.fillRect(16, 12, 4, 1);
+  });
+
+  make(scene, TEX.crack_heavy, 32, 32, (g) => {
+    g.fillStyle(0x100907, 0.82);
+    g.fillRect(15, 4, 2, 10);
+    g.fillRect(17, 13, 7, 2);
+    g.fillRect(23, 15, 2, 7);
+    g.fillRect(7, 17, 9, 2);
+    g.fillRect(6, 19, 2, 8);
+    g.fillRect(12, 24, 8, 2);
+    g.fillStyle(0xffffff, 0.16);
+    g.fillRect(14, 4, 1, 8);
+    g.fillRect(17, 12, 5, 1);
+    g.fillRect(7, 16, 7, 1);
   });
 
   // Meteor (the falling rock)
