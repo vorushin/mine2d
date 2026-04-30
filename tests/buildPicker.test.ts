@@ -4,8 +4,8 @@ import { HOTBAR } from '../src/ui/hotbarDef';
 import { makeGameState, addItem } from '../src/state/GameState';
 
 describe('BUILD_PICKER_SLOTS', () => {
-  it('contains 11 placement actions', () => {
-    expect(BUILD_PICKER_SLOTS).toHaveLength(11);
+  it('contains 10 placement actions', () => {
+    expect(BUILD_PICKER_SLOTS).toHaveLength(10);
   });
 
   it('only references HOTBAR entries with kind "place"', () => {
@@ -26,7 +26,7 @@ describe('buildPickerCells', () => {
   it('marks cells unavailable when the player lacks materials', () => {
     const state = makeGameState();
     const cells = buildPickerCells(state);
-    expect(cells).toHaveLength(11);
+    expect(cells).toHaveLength(10);
     const stoneWall = cells.find((c) => c.label === 'Wall S');
     expect(stoneWall?.available).toBe(false);
   });
@@ -46,6 +46,6 @@ describe('buildPickerCells', () => {
     addItem(state.inventory, 'wood', 1);
     const cells = buildPickerCells(state);
     expect(cells.map((c) => c.label)[0]).toBe('Wall W');
-    expect(cells.map((c) => c.label)[10]).toBe('Bench');
+    expect(cells.map((c) => c.label)[9]).toBe('T Flame');
   });
 });

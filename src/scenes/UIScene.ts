@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GameScene } from './GameScene';
-import { HOTBAR, HotbarAction, hotbarAvailable } from '../ui/hotbarDef';
-import { GameState, hasItem } from '../state/GameState';
+import { HOTBAR, HotbarAction, PRIMARY_HOTBAR_SLOTS, hotbarAvailable } from '../ui/hotbarDef';
+import { GameState } from '../state/GameState';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { InHandBar } from '../ui/InHandBar';
 import { BuildPicker } from '../ui/BuildPicker';
@@ -19,6 +19,7 @@ export class UIScene extends Phaser.Scene {
   readonly events = new Phaser.Events.EventEmitter();
   private hotbarContainer!: Phaser.GameObjects.Container;
   private hotbarCells: {
+    hotbarIndex: number;
     bg: Phaser.GameObjects.Rectangle;
     icon: Phaser.GameObjects.Rectangle;
     label: Phaser.GameObjects.Text;
@@ -26,6 +27,12 @@ export class UIScene extends Phaser.Scene {
     count: Phaser.GameObjects.Text;
     keyHint: Phaser.GameObjects.Text;
   }[] = [];
+  private buildHotbarButton?: {
+    bg: Phaser.GameObjects.Rectangle;
+    icon: Phaser.GameObjects.Rectangle;
+    label: Phaser.GameObjects.Text;
+    keyHint: Phaser.GameObjects.Text;
+  };
   private helpOverlay: HelpOverlay | null = null;
   private helpButton!: Phaser.GameObjects.Container;
   private hpBar!: Phaser.GameObjects.Graphics;
@@ -79,12 +86,7 @@ export class UIScene extends Phaser.Scene {
         callback: () => this.gameScene.input2.setJoystickVector({ x: this.joystick!.value.x, y: this.joystick!.value.y }),
       });
       this.inHandBar = new InHandBar(this, this.state, {
-        onSelectTool: (hotbarIdx) => {
-          if (this.placementHotbarIdx !== null) this.exitPlacementMode();
-          this.state.hotbarSlot = hotbarIdx;
-          this.events.emit('hotbar_changed');
-          this.gameScene.refreshPlayerWeapon();
-        },
+        onSelectTool: (hotbarIdx) => this.selectToolHotbar(hotbarIdx),
         onBuildPressed: () => this.openBuildPicker(),
         onCancelPressed: () => this.exitPlacementMode(),
       });
@@ -103,8 +105,10 @@ export class UIScene extends Phaser.Scene {
       ]);
       this.helpButton.setVisible(false);
     }
+    this.input.keyboard?.on('keydown-B', () => this.openBuildPicker());
 
     this.events.on('hotbar_changed', () => this.renderHotbar());
+    this.events.on('select_tool_hotbar', (slot: number) => this.selectToolHotbar(slot));
     this.events.on('zombie_killed', () => {
       this.cameras.main.shake(40, 0.002);
     });
@@ -119,11 +123,13 @@ export class UIScene extends Phaser.Scene {
 
   private buildHotbar(): void {
     this.hotbarContainer = this.add.container(0, 0);
-    for (let i = 0; i < HOTBAR.length; i++) {
+    for (let i = 0; i < PRIMARY_HOTBAR_SLOTS.length; i++) {
+      const hotbarIndex = PRIMARY_HOTBAR_SLOTS[i];
+      const act = HOTBAR[hotbarIndex];
       const bg = this.add.rectangle(0, 0, 56, 68, 0x1a1c22, 0.88).setStrokeStyle(2, 0x555, 0.8);
-      const icon = this.add.rectangle(0, 0, 28, 28, HOTBAR[i].color);
+      const icon = this.add.rectangle(0, 0, 28, 28, act.color);
       icon.setStrokeStyle(1, 0x000000, 0.5);
-      const label = this.add.text(0, 0, HOTBAR[i].label, {
+      const label = this.add.text(0, 0, act.label, {
         fontFamily: 'system-ui', fontSize: '11px', color: '#ddd',
       }).setOrigin(0.5);
       const countBg = this.add.rectangle(0, 0, 18, 14, 0x000000, 0.7).setStrokeStyle(1, 0x666, 0.5);
@@ -132,20 +138,29 @@ export class UIScene extends Phaser.Scene {
         fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: '#ffcc66',
         fontStyle: 'bold',
       }).setOrigin(0.5);
-      const keyHintText = i < 9 ? String(i + 1) : i === 9 ? '0' : '';
+      const keyHintText = String(i + 1);
       const keyHint = this.add.text(0, 0, keyHintText, {
         fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: '#9eb0c4',
       }).setOrigin(0, 0);
 
       this.hotbarContainer.add([bg, icon, label, countBg, count, keyHint]);
-      this.hotbarCells.push({ bg, icon, label, countBg, count, keyHint });
-      const idx = i;
+      this.hotbarCells.push({ hotbarIndex, bg, icon, label, countBg, count, keyHint });
       bg.setInteractive({ useHandCursor: true });
-      bg.on('pointerdown', () => {
-        this.state.hotbarSlot = idx;
-        this.events.emit('hotbar_changed');
-      });
+      bg.on('pointerdown', () => this.selectToolHotbar(hotbarIndex));
     }
+
+    const buildBg = this.add.rectangle(0, 0, 56, 68, 0x26334a, 0.88).setStrokeStyle(2, 0x88aaff, 0.8);
+    const buildIcon = this.add.rectangle(0, 0, 28, 28, 0x88aaff).setStrokeStyle(1, 0x000000, 0.5);
+    const buildLabel = this.add.text(0, 0, 'Build', {
+      fontFamily: 'system-ui', fontSize: '11px', color: '#ddd',
+    }).setOrigin(0.5);
+    const keyHint = this.add.text(0, 0, 'B', {
+      fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: '#9eb0c4',
+    }).setOrigin(0, 0);
+    buildBg.setInteractive({ useHandCursor: true });
+    buildBg.on('pointerdown', () => this.openBuildPicker());
+    this.hotbarContainer.add([buildBg, buildIcon, buildLabel, keyHint]);
+    this.buildHotbarButton = { bg: buildBg, icon: buildIcon, label: buildLabel, keyHint };
   }
 
   private buildHelpButton(): void {
@@ -260,6 +275,17 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  private selectToolHotbar(hotbarIdx: number): void {
+    if (this.placementHotbarIdx !== null) {
+      this.placementHotbarIdx = null;
+      this.prePlacementHotbarSlot = null;
+      this.inHandBar?.setPlacementMode(false);
+    }
+    this.state.hotbarSlot = hotbarIdx;
+    this.events.emit('hotbar_changed');
+    this.gameScene.refreshPlayerWeapon();
+  }
+
   private enterPlacementMode(hotbarIdx: number): void {
     this.buildPicker?.destroy();
     this.buildPicker = null;
@@ -318,15 +344,16 @@ export class UIScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
 
-    // Scale hotbar cells to fit the screen width (mobile support).
+    // Compact desktop hotbar: active tools plus one Build button.
     const maxCellW = 56;
-    const idealW = HOTBAR.length * maxCellW + (HOTBAR.length - 1) * 4;
+    const hotbarCellCount = this.hotbarCells.length + (this.buildHotbarButton ? 1 : 0);
+    const idealW = hotbarCellCount * maxCellW + (hotbarCellCount - 1) * 4;
     const availW = w - 24;
     const scale = Math.min(1, availW / idealW);
     const cellW = Math.round(maxCellW * scale);
     const cellH = Math.round(68 * scale);
     const pad = Math.max(2, Math.round(4 * scale));
-    const totalW = HOTBAR.length * cellW + (HOTBAR.length - 1) * pad;
+    const totalW = hotbarCellCount * cellW + (hotbarCellCount - 1) * pad;
     const startX = (w - totalW) / 2 + cellW / 2;
     const y = h - cellH / 2 - 10;
     for (let i = 0; i < this.hotbarCells.length; i++) {
@@ -344,6 +371,18 @@ export class UIScene extends Phaser.Scene {
       cell.count.setPosition(countX, countY);
       cell.keyHint.setPosition(x - cellW / 2 + 4, y - cellH / 2 + 3);
       cell.keyHint.setFontSize(Math.max(8, Math.round(10 * scale)));
+    }
+    if (this.buildHotbarButton) {
+      const x = startX + this.hotbarCells.length * (cellW + pad);
+      const button = this.buildHotbarButton;
+      button.bg.setPosition(x, y);
+      button.bg.setDisplaySize(cellW, cellH);
+      button.icon.setPosition(x, y - Math.round(12 * scale));
+      button.icon.setDisplaySize(Math.round(28 * scale), Math.round(28 * scale));
+      button.label.setPosition(x, y + Math.round(20 * scale));
+      button.label.setFontSize(Math.max(9, Math.round(11 * scale)));
+      button.keyHint.setPosition(x - cellW / 2 + 4, y - cellH / 2 + 3);
+      button.keyHint.setFontSize(Math.max(8, Math.round(10 * scale)));
     }
     this.hpLabel.setPosition(22, 22);
     this.phaseLabel.setPosition(w / 2, 22);
@@ -485,18 +524,17 @@ export class UIScene extends Phaser.Scene {
   private renderHotbar(): void {
     for (let i = 0; i < this.hotbarCells.length; i++) {
       const cell = this.hotbarCells[i];
-      const act: HotbarAction = HOTBAR[i];
-      const selected = i === this.state.hotbarSlot;
-      const available = hotbarAvailable(i, this.state);
+      const act: HotbarAction = HOTBAR[cell.hotbarIndex];
+      const selected = cell.hotbarIndex === this.state.hotbarSlot;
+      const available = hotbarAvailable(cell.hotbarIndex, this.state);
       cell.bg.setStrokeStyle(selected ? 3 : 1, selected ? 0xffd166 : 0x555, selected ? 1 : 0.7);
       cell.icon.setAlpha(available ? 1 : 0.35);
       cell.label.setAlpha(available ? 1 : 0.5);
       let countText = '';
       if (act.kind === 'ranged') {
         countText = String(this.state.inventory.counts[act.ammo] ?? 0);
-      } else if (act.kind === 'place') {
-        const c0 = act.cost[0];
-        countText = String(this.state.inventory.counts[c0.material] ?? 0);
+      } else if (act.kind === 'throw') {
+        countText = String(this.state.inventory.counts[act.ammo] ?? 0);
       }
       if (countText === '') {
         cell.count.setVisible(false);
@@ -505,7 +543,10 @@ export class UIScene extends Phaser.Scene {
         cell.count.setText(countText).setVisible(true);
         cell.countBg.setVisible(true);
       }
-      void hasItem; // suppress lint
+    }
+    if (this.buildHotbarButton) {
+      const selected = this.placementHotbarIdx !== null || HOTBAR[this.state.hotbarSlot]?.kind === 'place';
+      this.buildHotbarButton.bg.setStrokeStyle(selected ? 3 : 2, selected ? 0xffd166 : 0x88aaff, selected ? 1 : 0.8);
     }
   }
 
@@ -513,7 +554,6 @@ export class UIScene extends Phaser.Scene {
     if (this.modal) this.modal.destroy();
     this.modal = new Modal(this, {
       state: this.state,
-      benchAvailable: () => this.gameScene.benchAvailable(),
       onChanged: () => this.renderHotbar(),
       onClose: () => { this.modal?.destroy(); this.modal = null; },
       mode,

@@ -108,15 +108,6 @@ export const HOTBAR: HotbarAction[] = [
   },
   {
     kind: 'place',
-    label: 'Bench',
-    name: 'Crafting Bench',
-    description: 'Stand next to it and press E to open the crafting menu. Required for tool and weapon upgrades. Cost: 4 wood.',
-    color: 0xb5651d,
-    tile: TileType.CraftingBench,
-    cost: [{ material: 'wood', count: 4 }],
-  },
-  {
-    kind: 'place',
     label: 'Lava',
     name: 'Lava',
     description: 'Damages anything standing on it — including you. Great as a moat. Buy from shop.',
@@ -168,6 +159,28 @@ export const HOTBAR: HotbarAction[] = [
     ammo: 'bomb',
   },
 ];
+
+function findIndex(label: string): number {
+  const i = HOTBAR.findIndex((a) => a.label === label);
+  if (i < 0) throw new Error(`HOTBAR is missing required entry: ${label}`);
+  return i;
+}
+
+export const PRIMARY_HOTBAR_SLOTS: readonly number[] = [
+  findIndex('Pick'),
+  findIndex('Sword'),
+  findIndex('Bow'),
+  findIndex('Pistol'),
+  findIndex('Hammer'),
+  findIndex('Bomb'),
+];
+
+export function cyclePrimaryHotbarSlot(currentSlot: number, dir: 1 | -1): number {
+  const currentIdx = PRIMARY_HOTBAR_SLOTS.indexOf(currentSlot);
+  const start = currentIdx >= 0 ? currentIdx : (dir > 0 ? -1 : 0);
+  const next = (start + dir + PRIMARY_HOTBAR_SLOTS.length) % PRIMARY_HOTBAR_SLOTS.length;
+  return PRIMARY_HOTBAR_SLOTS[next];
+}
 
 export function hotbarAvailable(slot: number, state: GameState): boolean {
   const act = HOTBAR[slot];

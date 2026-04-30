@@ -19,16 +19,12 @@ export const TEX = {
   wall_iron: 'wall_iron',
   door_wood: 'door_wood',
   door_wood_open: 'door_wood_open',
-  door_iron: 'door_iron',
-  door_iron_open: 'door_iron_open',
   torch: 'torch',
   turret_basic: 'turret_basic',
-  turret_advanced: 'turret_advanced',
   turret_flame: 'turret_flame',
   wall_reinforced: 'wall_reinforced',
   bomb: 'bomb',
   flame: 'flame',
-  crafting_bench: 'crafting_bench',
   chest: 'chest',
   lava: 'lava',
   shop_npc: 'shop_npc',
@@ -50,7 +46,6 @@ export const TEX = {
   weapon_pistol: 'weapon_pistol',
   rain_drop: 'rain_drop',
   raindrop: 'raindrop',
-  trophy: 'trophy',
   chicken: 'chicken',
   star: 'star',
   volcano: 'volcano',
@@ -295,21 +290,6 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillStyle(0x4a2e1b, 0.5); g.fillRect(24, 2, 4, 28);
   });
 
-  make(scene, TEX.door_iron, 32, 32, (g) => {
-    g.fillStyle(0x8e8ea2, 1); g.fillRect(4, 2, 24, 28);
-    g.fillStyle(0xb0b0c0, 1); g.fillRect(6, 4, 20, 24);
-    g.fillStyle(0x3a3a4a, 1);
-    g.fillRect(7, 6, 1, 1); g.fillRect(24, 6, 1, 1); g.fillRect(7, 25, 1, 1); g.fillRect(24, 25, 1, 1);
-    g.fillRect(6, 14, 20, 1); g.fillRect(6, 16, 20, 1);
-    g.fillStyle(0xffd700, 1); g.fillRect(22, 15, 2, 2);
-    outline(g, 4, 2, 24, 28, 0x1a1a2a);
-  });
-
-  make(scene, TEX.door_iron_open, 32, 32, (g) => {
-    g.fillStyle(0x4a4a5a, 0.5); g.fillRect(4, 2, 4, 28);
-    g.fillStyle(0x4a4a5a, 0.5); g.fillRect(24, 2, 4, 28);
-  });
-
   make(scene, TEX.torch, 16, 26, (g) => {
     // handle
     g.fillStyle(0x5a3a1b, 1); g.fillRect(6, 10, 4, 14);
@@ -391,28 +371,6 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xff8030, 1); g.fillRect(1, 3, 8, 2);
     g.fillStyle(0xffee88, 1); g.fillRect(2, 3, 5, 1);
     g.fillStyle(0xffffff, 1); g.fillRect(3, 3, 2, 1);
-  });
-
-  make(scene, TEX.turret_advanced, 32, 32, (g) => {
-    g.fillStyle(0x5a4a6a, 1); g.fillRect(6, 20, 20, 10);
-    g.fillStyle(0x3a2a4a, 1); g.fillRect(6, 28, 20, 2);
-    g.fillStyle(0x8040ff, 1); g.fillRect(10, 10, 12, 12);
-    g.fillStyle(0xa270ff, 1); g.fillRect(11, 11, 10, 4);
-    g.fillStyle(0x5a20b2, 1); g.fillRect(10, 20, 12, 2);
-    g.fillStyle(0xffd700, 1); g.fillRect(13, 14, 6, 2);
-    outline(g, 6, 10, 20, 20, 0x1a0a2a);
-  });
-
-  make(scene, TEX.crafting_bench, 32, 26, (g) => {
-    g.fillStyle(0xb5651d, 1); g.fillRect(2, 6, 28, 14);
-    g.fillStyle(0x8b4513, 1); g.fillRect(2, 18, 28, 2);
-    g.fillStyle(0x8b4513, 1); g.fillRect(4, 20, 3, 6); g.fillRect(25, 20, 3, 6);
-    // tools on top
-    g.fillStyle(0x8a8a8a, 1); g.fillRect(8, 3, 2, 4); g.fillRect(7, 2, 4, 2); // hammer head
-    g.fillStyle(0x5a3a1b, 1); g.fillRect(9, 5, 1, 6); // hammer handle
-    g.fillStyle(0xc9b037, 1); g.fillRect(18, 3, 6, 3); // saw
-    g.fillStyle(0x5a3a1b, 1); g.fillRect(24, 4, 3, 1);
-    outline(g, 2, 6, 28, 14, 0x3d2410);
   });
 
   make(scene, TEX.chest, 32, 26, (g) => {
@@ -762,19 +720,6 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillRect(2, 2, 2, 2);
   });
 
-  // Trophy
-  make(scene, TEX.trophy, 20, 22, (g) => {
-    g.fillStyle(0xffd700, 1); g.fillRect(4, 2, 12, 10); // cup
-    g.fillStyle(0xfff0a0, 1); g.fillRect(5, 3, 10, 2);
-    g.fillStyle(0xaa7700, 1); g.fillRect(4, 10, 12, 2);
-    g.fillStyle(0xffd700, 1); g.fillRect(0, 4, 4, 2); g.fillRect(16, 4, 4, 2); // handles
-    g.fillRect(0, 4, 2, 6); g.fillRect(18, 4, 2, 6);
-    g.fillStyle(0xaa7700, 1); g.fillRect(7, 12, 6, 2); // stem
-    g.fillStyle(0x8b4513, 1); g.fillRect(3, 14, 14, 5); // base
-    g.fillStyle(0x5a3a1b, 1); g.fillRect(3, 17, 14, 2);
-    outline(g, 4, 2, 12, 10, 0x1a1a1a);
-    outline(g, 3, 14, 14, 5, 0x1a1a1a);
-  });
 }
 
 function make(scene: Phaser.Scene, key: string, w: number, h: number, paint: (g: Phaser.GameObjects.Graphics) => void) {

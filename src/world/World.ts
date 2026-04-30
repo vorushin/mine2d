@@ -20,12 +20,9 @@ const TEXTURE_FOR: Partial<Record<TileType, string>> = {
   [TileType.WallStone]: TEX.wall_stone,
   [TileType.WallIron]: TEX.wall_iron,
   [TileType.DoorWood]: TEX.door_wood,
-  [TileType.DoorIron]: TEX.door_iron,
   [TileType.Torch]: TEX.torch,
-  [TileType.CraftingBench]: TEX.crafting_bench,
-  [TileType.Chest]: TEX.chest,
+  [TileType.SupplyCrate]: TEX.chest,
   [TileType.TurretBasic]: TEX.turret_basic,
-  [TileType.TurretAdvanced]: TEX.turret_advanced,
   [TileType.TurretFlame]: TEX.turret_flame,
   [TileType.WallReinforced]: TEX.wall_reinforced,
   [TileType.Lava]: TEX.lava,
@@ -148,13 +145,10 @@ export class World {
         repeat: -1,
         duration: 400 + Math.random() * 300,
       });
-    } else if (t.type === TileType.TurretBasic || t.type === TileType.TurretAdvanced || t.type === TileType.TurretFlame) {
+    } else if (t.type === TileType.TurretBasic || t.type === TileType.TurretFlame) {
       img.setOrigin(0.5, 1);
       img.y = y * TILE_SIZE + TILE_SIZE - 1;
-    } else if (t.type === TileType.CraftingBench) {
-      img.setOrigin(0.5, 1);
-      img.y = y * TILE_SIZE + TILE_SIZE - 2;
-    } else if (t.type === TileType.Chest) {
+    } else if (t.type === TileType.SupplyCrate) {
       img.setOrigin(0.5, 1);
       img.y = y * TILE_SIZE + TILE_SIZE - 2;
     } else if (t.type === TileType.ShopNPC) {
@@ -260,7 +254,7 @@ export class World {
   isWalkable(x: number, y: number): boolean {
     const t = this.getTileAt(x, y);
     if (!t) return false;
-    if (t.type === TileType.DoorWood || t.type === TileType.DoorIron) {
+    if (t.type === TileType.DoorWood) {
       const obj = this.tileObjects.get(this.key(x, y));
       return obj?.getData('open') === true;
     }
@@ -384,16 +378,14 @@ export class World {
   toggleDoor(x: number, y: number): boolean {
     const t = this.getTileAt(x, y);
     if (!t) return false;
-    if (t.type !== TileType.DoorWood && t.type !== TileType.DoorIron) return false;
+    if (t.type !== TileType.DoorWood) return false;
     const obj = this.tileObjects.get(this.key(x, y)) as Phaser.GameObjects.Image | undefined;
     if (!obj) return false;
     const isOpen = obj.getData('open') === true;
     const nextOpen = !isOpen;
     obj.setData('open', nextOpen);
     // Swap texture
-    const closedKey = t.type === TileType.DoorWood ? TEX.door_wood : TEX.door_iron;
-    const openKey = t.type === TileType.DoorWood ? TEX.door_wood_open : TEX.door_iron_open;
-    obj.setTexture(nextOpen ? openKey : closedKey);
+    obj.setTexture(nextOpen ? TEX.door_wood_open : TEX.door_wood);
     return nextOpen;
   }
 
@@ -460,10 +452,8 @@ function depthFor(type: TileType): number {
     case TileType.Torch:
       return 5;
     case TileType.TurretBasic:
-    case TileType.TurretAdvanced:
     case TileType.TurretFlame:
-    case TileType.CraftingBench:
-    case TileType.Chest:
+    case TileType.SupplyCrate:
     case TileType.ShopNPC:
       return 5;
     case TileType.Lava:

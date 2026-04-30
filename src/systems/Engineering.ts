@@ -13,12 +13,9 @@ const REPAIRABLE: ReadonlySet<TileType> = new Set([
   TileType.WallIron,
   TileType.WallReinforced,
   TileType.DoorWood,
-  TileType.DoorIron,
   TileType.TurretBasic,
-  TileType.TurretAdvanced,
   TileType.TurretFlame,
-  TileType.CraftingBench,
-  TileType.Chest,
+  TileType.SupplyCrate,
   TileType.Torch,
   TileType.Bridge,
 ]);

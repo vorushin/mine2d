@@ -32,13 +32,10 @@ const TILE_NAMES: Record<TileType, string> = {
   [TileType.WallStone]: 'wall_stone',
   [TileType.WallIron]: 'wall_iron',
   [TileType.DoorWood]: 'door_wood',
-  [TileType.DoorIron]: 'door_iron',
   [TileType.Lava]: 'lava',
   [TileType.Torch]: 'torch',
-  [TileType.CraftingBench]: 'crafting_bench',
-  [TileType.Chest]: 'chest',
+  [TileType.SupplyCrate]: 'supply_crate',
   [TileType.TurretBasic]: 'turret_basic',
-  [TileType.TurretAdvanced]: 'turret_advanced',
   [TileType.ShopNPC]: 'shop_npc',
   [TileType.Water]: 'water',
   [TileType.Sand]: 'sand',
@@ -58,6 +55,7 @@ const TILE_NAMES: Record<TileType, string> = {
 const NAME_TO_TILE: Record<string, TileType> = Object.fromEntries(
   (Object.entries(TILE_NAMES) as [string, string][]).map(([k, v]) => [v, Number(k) as TileType])
 );
+NAME_TO_TILE.chest = TileType.SupplyCrate;
 
 function tileNameFor(t: TileType): string {
   return TILE_NAMES[t] ?? 'grass';

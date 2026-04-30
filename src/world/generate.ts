@@ -237,14 +237,14 @@ export function generateWorld(seed: number): GeneratedWorld {
     }
   }
 
-  // Place a starter chest near spawn (not on top of spawn)
+  // Place a starter supply crate near spawn (not on top of spawn)
   for (let tries = 0; tries < 40; tries++) {
     const angle = rand() * Math.PI * 2;
     const dist = 3 + rand() * 2;
     const cx = Math.floor(spawn.x + Math.cos(angle) * dist);
     const cy = Math.floor(spawn.y + Math.sin(angle) * dist);
     if (inBounds(cx, cy) && tiles[cy][cx].type === TileType.Grass) {
-      tiles[cy][cx] = makeTile(TileType.Chest);
+      tiles[cy][cx] = makeTile(TileType.SupplyCrate);
       break;
     }
   }

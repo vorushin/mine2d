@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { SaveStore } from '../systems/SaveStore';
 import { GameState, RunStats } from '../state/GameState';
 import { sounds } from '../systems/Sound';
-import { earnedAchievements } from '../systems/Achievements';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -48,21 +47,6 @@ export class GameOverScene extends Phaser.Scene {
         this.add.text(w / 2 + panelW / 2 - 16, panelY + 10 + i * 22, String(val), {
           fontFamily: 'ui-monospace, monospace', fontSize: '14px', color: '#ffd166', fontStyle: 'bold',
         }).setOrigin(1, 0);
-      }
-    }
-
-    // Achievements earned this run
-    if (data.state) {
-      const earned = earnedAchievements(data.state);
-      if (earned.length > 0) {
-        this.add.text(w / 2, h / 2 + 100, `Trophies (${earned.length})`, {
-          fontFamily: 'system-ui', fontSize: '14px', color: '#ffd166', fontStyle: 'bold',
-        }).setOrigin(0.5);
-        const labels = earned.map((a) => a.label).join(' · ');
-        this.add.text(w / 2, h / 2 + 120, labels, {
-          fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: '#cfd6e0',
-          wordWrap: { width: Math.min(w - 40, 480) }, align: 'center',
-        }).setOrigin(0.5, 0);
       }
     }
 

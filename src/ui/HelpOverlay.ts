@@ -10,14 +10,14 @@ type Tab = 'controls' | 'items' | 'events';
 const CONTROLS: [string, string][] = [
   ['WASD / joystick', 'Move'],
   ['Click / tap tile', 'Use selected hotbar item (hold to drag-build)'],
-  ['1 – 9, 0', 'Select hotbar slot'],
+  ['1 – 6', 'Select active tool'],
+  ['B', 'Open build picker'],
   ['Mouse wheel', 'Cycle hotbar'],
-  ['E', 'Interact (shop, bench, door)'],
+  ['E', 'Interact (shop, door)'],
   ['C', 'Open crafting anywhere'],
   ['Shift', 'Dash — 2× speed burst'],
   ['Click Rex', 'Pet the dog (+3 HP, hearts)'],
   ['N', 'Skip to night (day only)'],
-  ['K', 'Save game (auto-saves at dawn too)'],
   ['H or ?', 'Toggle this help'],
 ];
 

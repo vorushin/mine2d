@@ -18,7 +18,7 @@ import { WorldEvents } from '../systems/WorldEvents';
 import { useHammer, bombExplosion, BombVictim } from '../systems/Engineering';
 import { GameState, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
-import { HOTBAR, hotbarAvailable } from '../ui/hotbarDef';
+import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
 
 export class GameScene extends Phaser.Scene {
@@ -250,12 +250,16 @@ export class GameScene extends Phaser.Scene {
       this.handleTileInteraction(pointer.worldX, pointer.worldY);
     });
 
-    this.input2.events.on('hotbar_select', (slot: number) => {
-      this.state.hotbarSlot = slot;
-      this.scene.get('UI').events.emit('hotbar_changed');
-      this.refreshPlayerWeapon();
+    const selectToolHotbar = (slot: number) => {
+      const ui = this.scene.get('UI') as Phaser.Scene & { events: Phaser.Events.EventEmitter };
+      if (ui?.events) ui.events.emit('select_tool_hotbar', slot);
+      else {
+        this.state.hotbarSlot = slot;
+        this.refreshPlayerWeapon();
+      }
       sounds.click();
-    });
+    };
+    this.input2.events.on('hotbar_select', (slot: number) => selectToolHotbar(slot));
     this.input2.events.on('interact', () => this.handleInteractPressed());
     this.input2.events.on('skip_to_night', () => this.cycle.skipToNight());
 
@@ -263,10 +267,6 @@ export class GameScene extends Phaser.Scene {
       sounds.ensure();
       this.scene.get('UI').events.emit('open_modal', 'craft');
     });
-
-    // K — manual save
-    this.input.keyboard?.on('keydown-K', () => this.saveRun('Manual save'));
-
 
     // Shift — dash
     this.input.keyboard?.on('keydown-SHIFT', () => {
@@ -279,9 +279,7 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on('wheel', (_p: any, _obj: any, _dx: number, dy: number) => {
       const dir = dy > 0 ? 1 : -1;
-      this.state.hotbarSlot = (this.state.hotbarSlot + dir + HOTBAR.length) % HOTBAR.length;
-      this.scene.get('UI').events.emit('hotbar_changed');
-      this.refreshPlayerWeapon();
+      selectToolHotbar(cyclePrimaryHotbarSlot(this.state.hotbarSlot, dir));
     });
 
     // Zombie-world events → sounds + particles
@@ -473,11 +471,7 @@ export class GameScene extends Phaser.Scene {
           this.openModal('shop');
           return;
         }
-        if (t.type === TileType.CraftingBench) {
-          this.openModal('craft');
-          return;
-        }
-        if (t.type === TileType.DoorWood || t.type === TileType.DoorIron) {
+        if (t.type === TileType.DoorWood) {
           this.world.toggleDoor(tx, ty);
           sounds.click();
           return;
@@ -488,10 +482,6 @@ export class GameScene extends Phaser.Scene {
 
   openModal(mode: 'shop' | 'craft'): void {
     this.scene.get('UI').events.emit('open_modal', mode);
-  }
-
-  benchAvailable(): boolean {
-    return true; // No bench required in simplified mode.
   }
 
   popNumber(x: number, y: number, text: string, color: string): void {
@@ -543,8 +533,8 @@ export class GameScene extends Phaser.Scene {
           if (res.drop && res.drop.count > 0) {
             this.pickups.push(new Pickup(this, wc.x, wc.y, res.drop.material, res.drop.count));
           }
-          // Chests spill a generous loot pile
-          if (t.type === TileType.Chest) {
+          // Supply crates spill a generous loot pile
+          if (t.type === TileType.SupplyCrate) {
             const loot: { m: MaterialId; c: number }[] = [
               { m: 'wood', c: 4 }, { m: 'stone', c: 3 }, { m: 'gold', c: 2 }, { m: 'arrow', c: 6 },
             ];
@@ -553,7 +543,7 @@ export class GameScene extends Phaser.Scene {
             }
             this.effects.burst(wc.x, wc.y, 0xffd700, 20, 180, 700, 1.4);
             sounds.cake();
-            this.showHint('Chest unlocked! 🎁');
+            this.showHint('Supply crate opened! 🎁');
           }
         }
       } else if (res.reason === 'weak_tool') this.showHint('Need better pickaxe — craft one with C');
@@ -693,9 +683,8 @@ export class GameScene extends Phaser.Scene {
       this.world.placeTile(tp.x, tp.y, act.tile);
       sounds.place();
       this.state.stats.tilesPlaced += 1;
-      if (act.tile === TileType.TurretBasic || act.tile === TileType.TurretAdvanced || act.tile === TileType.TurretFlame) {
+      if (act.tile === TileType.TurretBasic || act.tile === TileType.TurretFlame) {
         const kind =
-          act.tile === TileType.TurretAdvanced ? 'advanced' :
           act.tile === TileType.TurretFlame ? 'flame' :
           'basic';
         const barrel = makeTurretBarrel(this, tp.x, tp.y, kind);
@@ -708,15 +697,14 @@ export class GameScene extends Phaser.Scene {
    * For touch UI: returns a brief tag identifying an interactable tile the
    * player is adjacent to (within a 1-tile radius), or null.
    */
-  getAdjacentInteractable(): 'shop' | 'bench' | 'door' | null {
+  getAdjacentInteractable(): 'shop' | 'door' | null {
     const p = this.world.worldToTile(this.player.x, this.player.y);
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const t = this.world.getTileAt(p.x + dx, p.y + dy);
         if (!t) continue;
         if (t.type === TileType.ShopNPC) return 'shop';
-        if (t.type === TileType.CraftingBench) return 'bench';
-        if (t.type === TileType.DoorWood || t.type === TileType.DoorIron) return 'door';
+        if (t.type === TileType.DoorWood) return 'door';
       }
     }
     return null;
@@ -887,7 +875,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.turrets = this.turrets.filter((t) => {
       const tile = this.world.getTileAt(t.tileX, t.tileY);
-      const ok = tile && (tile.type === TileType.TurretBasic || tile.type === TileType.TurretAdvanced || tile.type === TileType.TurretFlame);
+      const ok = tile && (tile.type === TileType.TurretBasic || tile.type === TileType.TurretFlame);
       if (!ok) {
         t.barrel.destroy();
         return false;
@@ -970,7 +958,7 @@ export class GameScene extends Phaser.Scene {
       if (s.alpha !== starAlpha) s.setAlpha(starAlpha * (0.7 + 0.3 * Math.sin((this.time.now + s.x) / 500)));
     }
 
-    // Interact prompt: show when near shop/bench/door
+    // Interact prompt: show when near shop/door
     this.updateInteractPrompt();
 
     // Player death
@@ -1112,8 +1100,7 @@ export class GameScene extends Phaser.Scene {
         const t = this.world.getTileAt(p.x + dx, p.y + dy);
         if (!t) continue;
         if (t.type === TileType.ShopNPC) { prompt = 'E — open Shop'; break outer; }
-        if (t.type === TileType.CraftingBench) { prompt = 'E — Crafting'; break outer; }
-        if (t.type === TileType.DoorWood || t.type === TileType.DoorIron) { prompt = 'E — open/close door'; break outer; }
+        if (t.type === TileType.DoorWood) { prompt = 'E — open/close door'; break outer; }
       }
     }
     if (prompt) {

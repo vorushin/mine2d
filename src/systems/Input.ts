@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PRIMARY_HOTBAR_SLOTS } from '../ui/hotbarDef';
 
 export interface InputVector {
   x: number;
@@ -23,20 +24,10 @@ export class InputSystem {
       D: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
     };
 
-    // Hotbar number keys 1-9 → slots 0-8, 0 → slot 9
+    // Number keys select the compact in-hand hotbar. Buildables live in the build picker.
     const kc = Phaser.Input.Keyboard.KeyCodes;
-    const numberKeys: { code: number; slot: number }[] = [
-      { code: kc.ONE, slot: 0 },
-      { code: kc.TWO, slot: 1 },
-      { code: kc.THREE, slot: 2 },
-      { code: kc.FOUR, slot: 3 },
-      { code: kc.FIVE, slot: 4 },
-      { code: kc.SIX, slot: 5 },
-      { code: kc.SEVEN, slot: 6 },
-      { code: kc.EIGHT, slot: 7 },
-      { code: kc.NINE, slot: 8 },
-      { code: kc.ZERO, slot: 9 },
-    ];
+    const codes = [kc.ONE, kc.TWO, kc.THREE, kc.FOUR, kc.FIVE, kc.SIX];
+    const numberKeys = codes.map((code, idx) => ({ code, slot: PRIMARY_HOTBAR_SLOTS[idx] }));
     for (const { code, slot } of numberKeys) {
       const key = kb.addKey(code);
       key.on('down', () => this.events.emit('hotbar_select', slot));

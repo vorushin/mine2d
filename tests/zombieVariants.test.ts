@@ -28,7 +28,7 @@ describe('engineering recipes', () => {
     addItem(s.inventory, 'iron', 5);
     addItem(s.inventory, 'stone', 5);
     const r = RECIPES.find((r) => r.id === 'reinforced_wall_x4')!;
-    expect(applyCraft(r, s, true).ok).toBe(true);
+    expect(applyCraft(r, s).ok).toBe(true);
     expect(hasItem(s.inventory, 'wallReinforced', 4)).toBe(true);
     expect(hasItem(s.inventory, 'iron', 3)).toBe(true);
     expect(hasItem(s.inventory, 'stone', 2)).toBe(true);
@@ -39,10 +39,10 @@ describe('engineering recipes', () => {
     addItem(s.inventory, 'wood', 5);
     addItem(s.inventory, 'iron', 2);
     const r = RECIPES.find((r) => r.id === 'repair_hammer')!;
-    expect(applyCraft(r, s, true).ok).toBe(true);
+    expect(applyCraft(r, s).ok).toBe(true);
     expect(s.hasHammer).toBe(true);
     // Second attempt fails as 'already_have'
-    const res2 = applyCraft(r, s, true);
+    const res2 = applyCraft(r, s);
     expect(res2.ok).toBe(false);
     if (!res2.ok) expect(res2.reason).toBe('already_have');
   });
@@ -52,7 +52,7 @@ describe('engineering recipes', () => {
     addItem(s.inventory, 'wood', 10);
     addItem(s.inventory, 'iron', 10);
     const r = RECIPES.find((r) => r.id === 'bomb_x3')!;
-    expect(applyCraft(r, s, true).ok).toBe(true);
+    expect(applyCraft(r, s).ok).toBe(true);
     expect(hasItem(s.inventory, 'bomb', 3)).toBe(true);
   });
 
@@ -62,7 +62,7 @@ describe('engineering recipes', () => {
     addItem(s.inventory, 'stone', 10);
     addItem(s.inventory, 'iron', 10);
     const r = RECIPES.find((r) => r.id === 'flame_turret')!;
-    expect(applyCraft(r, s, true).ok).toBe(true);
+    expect(applyCraft(r, s).ok).toBe(true);
     expect(hasItem(s.inventory, 'turretFlame', 1)).toBe(true);
   });
 });

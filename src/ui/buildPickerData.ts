@@ -18,7 +18,6 @@ export const BUILD_PICKER_SLOTS: readonly number[] = [
   findIndex('Lava'),
   findIndex('Turret'),
   findIndex('T Flame'),
-  findIndex('Bench'),
 ];
 
 export interface BuildPickerCell {

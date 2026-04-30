@@ -26,7 +26,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     // Sprite showcase at bottom
-    const decor = [TEX.tree, TEX.stone, TEX.iron_ore, TEX.gold_ore, TEX.torch, TEX.crafting_bench, TEX.chest, TEX.shop_npc, 'zombie_normal', 'zombie_fast', 'zombie_armored'];
+    const decor = [TEX.tree, TEX.stone, TEX.iron_ore, TEX.gold_ore, TEX.torch, TEX.chest, TEX.shop_npc, 'zombie_normal', 'zombie_fast', 'zombie_armored'];
     const totalDecorW = decor.length * 64;
     const startX = (w - totalDecorW) / 2 + 32;
     for (let i = 0; i < decor.length; i++) {

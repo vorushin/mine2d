@@ -22,9 +22,6 @@ export const ZOMBIE_SPAWN_RAMP_PER_NIGHT = 10;
 export const TURRET_BASIC_RANGE = 5 * TILE_SIZE;
 export const TURRET_BASIC_FIRE_MS = 800;
 export const TURRET_BASIC_DAMAGE = 5;
-export const TURRET_ADVANCED_RANGE = 6 * TILE_SIZE;
-export const TURRET_ADVANCED_FIRE_MS = 500;
-export const TURRET_ADVANCED_DAMAGE = 10;
 
 export const TURRET_FLAME_RANGE = 3 * TILE_SIZE;
 export const TURRET_FLAME_FIRE_MS = 600;
@@ -57,15 +54,12 @@ export const COLORS = {
   wall_stone: 0x707070,
   wall_iron: 0xb0b0c0,
   door_wood: 0x5e3a1b,
-  door_iron: 0x8a8aa0,
   door_open: 0x3a2410,
   lava: 0xff4d1a,
   lava_glow: 0xffb347,
   torch: 0xffd27a,
-  crafting_bench: 0xb5651d,
   chest: 0x6b4423,
   turret_basic: 0x4d7fff,
-  turret_advanced: 0x8040ff,
   turret_flame: 0xff8030,
   wall_reinforced: 0x5a5a70,
   bomb: 0x2a2a2a,

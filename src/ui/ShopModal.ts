@@ -2,11 +2,10 @@ import Phaser from 'phaser';
 import { GameState, hasItem } from '../state/GameState';
 import { MaterialId } from '../world/tileTypes';
 import { SHOP_OFFERS, buy, firstAffordablePayment } from '../systems/Shop';
-import { RECIPES, applyCraft } from '../systems/Crafting';
+import { RECIPES, applyCraft, canCraft as canCraftRecipe } from '../systems/Crafting';
 
 export interface ModalDeps {
   state: GameState;
-  benchAvailable: () => boolean;
   onClose: () => void;
   mode: 'shop' | 'craft';
   onChanged: () => void;
@@ -175,17 +174,7 @@ export class Modal {
       invX += 68;
     }
 
-    const statusLine = this.deps.mode === 'craft' && !this.deps.benchAvailable()
-      ? 'Stand next to a Crafting Bench to craft.'
-      : '';
-    let rowsTopY = invRowY + 28;
-    if (statusLine) {
-      const status = this.scene.add.text(panelX + 20, invRowY + 24, statusLine, {
-        fontFamily: 'system-ui', fontSize: '12px', color: '#ffa66a', fontStyle: 'italic',
-      });
-      this.container.add(status);
-      rowsTopY = invRowY + 48;
-    }
+    const rowsTopY = invRowY + 28;
 
     // Scrollable rows region
     this.contentTop = rowsTopY;
@@ -288,20 +277,20 @@ export class Modal {
     this.contentContainer!.add(cost);
 
     const canPay = recipe.inputs.every((i) => hasItem(this.deps.state.inventory, i.material, i.count));
-    const benchOk = this.deps.benchAvailable();
     const alreadyHave = (() => {
       const a = recipe.produces;
       if (a.kind === 'pickaxe_upgrade') return this.deps.state.pickaxeTier >= a.toTier;
       if (a.kind === 'sword_upgrade') return this.deps.state.swordTier >= a.toTier;
       if (a.kind === 'unlock_bow') return this.deps.state.hasBow;
       if (a.kind === 'unlock_pistol') return this.deps.state.hasPistol;
+      if (a.kind === 'unlock_hammer') return this.deps.state.hasHammer;
       return false;
     })();
-    const canCraft = canPay && benchOk && !alreadyHave;
-    const btnLabel = alreadyHave ? 'Owned' : canPay && benchOk ? 'Craft' : '—';
+    const canCraft = canCraftRecipe(recipe, this.deps.state).ok;
+    const btnLabel = alreadyHave ? 'Owned' : canPay ? 'Craft' : '—';
 
     this.renderActionButton(rowX + rowW - 80, y, 72, 30, btnLabel, canCraft, () => {
-      const res = applyCraft(recipe, this.deps.state, this.deps.benchAvailable());
+      const res = applyCraft(recipe, this.deps.state);
       this.deps.onChanged();
       if (res.ok) this.showFeedback(`+ ${recipe.label}`, '#a0ffa0');
       this.render();
