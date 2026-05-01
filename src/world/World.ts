@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from '../config';
-import { TileType, TILE_SPECS, MaterialId, isBreakable } from './tileTypes';
+import { TileType, TILE_SPECS, MaterialId, isBreakable, isPlaceableGround } from './tileTypes';
 import { generateWorld, Tile, GeneratedWorld } from './generate';
 import { TEX } from '../gfx/textures';
 
@@ -25,6 +25,7 @@ const TEXTURE_FOR: Partial<Record<TileType, string>> = {
   [TileType.TurretBasic]: TEX.turret_basic,
   [TileType.TurretFlame]: TEX.turret_flame,
   [TileType.WallReinforced]: TEX.wall_reinforced,
+  [TileType.SpikeTrap]: TEX.spike_trap,
   [TileType.Lava]: TEX.lava,
   [TileType.ShopNPC]: TEX.shop_npc,
   [TileType.DeadTree]: TEX.dead_tree,
@@ -258,7 +259,7 @@ export class World {
   }
 
   private makeObjectShadow(type: TileType, cx: number, cy: number): Phaser.GameObjects.Ellipse | null {
-    if (type === TileType.Torch || type === TileType.Lava || type === TileType.Bridge) return null;
+    if (type === TileType.Torch || type === TileType.Lava || type === TileType.Bridge || type === TileType.SpikeTrap) return null;
     let w = 22;
     let h = 6;
     let y = cy + 10;
@@ -407,7 +408,7 @@ export class World {
   placeTile(x: number, y: number, type: TileType): boolean {
     const t = this.getTileAt(x, y);
     if (!t) return false;
-    const onGround = t.type === TileType.Grass || t.type === TileType.Dirt;
+    const onGround = isPlaceableGround(t.type);
     // Bridges specifically go onto Water
     if (type === TileType.Bridge) {
       if (t.type !== TileType.Water) return false;
@@ -527,6 +528,8 @@ function depthFor(type: TileType): number {
       return 5;
     case TileType.Lava:
       return 1;
+    case TileType.SpikeTrap:
+      return 2;
     default:
       return 3;
   }
@@ -542,6 +545,7 @@ function usesDamageOverlay(type: TileType): boolean {
     type === TileType.TurretBasic ||
     type === TileType.TurretFlame ||
     type === TileType.SupplyCrate ||
-    type === TileType.Bridge
+    type === TileType.Bridge ||
+    type === TileType.SpikeTrap
   );
 }

@@ -4,8 +4,8 @@ import { HOTBAR } from '../src/ui/hotbarDef';
 import { makeGameState, addItem } from '../src/state/GameState';
 
 describe('BUILD_PICKER_SLOTS', () => {
-  it('contains 10 placement actions', () => {
-    expect(BUILD_PICKER_SLOTS).toHaveLength(10);
+  it('contains 11 placement actions', () => {
+    expect(BUILD_PICKER_SLOTS).toHaveLength(11);
   });
 
   it('only references HOTBAR entries with kind "place"', () => {
@@ -26,7 +26,7 @@ describe('buildPickerCells', () => {
   it('marks cells unavailable when the player lacks materials', () => {
     const state = makeGameState();
     const cells = buildPickerCells(state);
-    expect(cells).toHaveLength(10);
+    expect(cells).toHaveLength(11);
     const stoneWall = cells.find((c) => c.label === 'Wall S');
     expect(stoneWall?.available).toBe(false);
   });
@@ -46,13 +46,14 @@ describe('buildPickerCells', () => {
     addItem(state.inventory, 'wood', 1);
     const cells = buildPickerCells(state);
     expect(cells.map((c) => c.label)[0]).toBe('Wall W');
-    expect(cells.map((c) => c.label)[9]).toBe('T Flame');
+    expect(cells.map((c) => c.label)[10]).toBe('T Flame');
   });
 
   it('includes compact resource requirements for each cell', () => {
     const state = makeGameState();
     const cells = buildPickerCells(state);
     expect(cells.find((c) => c.label === 'Wall W')?.costLabel).toBe('2W');
+    expect(cells.find((c) => c.label === 'Trap')?.costLabel).toBe('2W 2S');
     expect(cells.find((c) => c.label === 'Turret')?.costLabel).toBe('5W 5S 3I');
     expect(cells.find((c) => c.label === 'T Flame')?.costLabel).toBe('1F-Turret');
   });

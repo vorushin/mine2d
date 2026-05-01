@@ -18,6 +18,7 @@ const REPAIRABLE: ReadonlySet<TileType> = new Set([
   TileType.SupplyCrate,
   TileType.Torch,
   TileType.Bridge,
+  TileType.SpikeTrap,
 ]);
 
 export type HammerResult =

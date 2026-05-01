@@ -26,6 +26,7 @@ export const TEX = {
   turret_basic: 'turret_basic',
   turret_flame: 'turret_flame',
   wall_reinforced: 'wall_reinforced',
+  spike_trap: 'spike_trap',
   bomb: 'bomb',
   flame: 'flame',
   chest: 'chest',
@@ -384,6 +385,26 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xffcc33, 1);
     g.fillRect(15, 6, 1, 4); g.fillRect(15, 12, 1, 4); g.fillRect(15, 18, 1, 4);
     outline(g, 0, 0, 32, 32, 0x0a0a18);
+  });
+
+  make(scene, TEX.spike_trap, 32, 32, (g) => {
+    // Flat wooden frame with raised metal teeth: readable as a floor hazard.
+    g.fillStyle(0x5a3a1b, 1); g.fillRect(2, 3, 28, 26);
+    g.fillStyle(0x7a4e2b, 1); g.fillRect(4, 5, 24, 22);
+    g.fillStyle(0x3a2410, 1);
+    g.fillRect(2, 3, 28, 2); g.fillRect(2, 27, 28, 2);
+    g.fillRect(2, 3, 2, 26); g.fillRect(28, 3, 2, 26);
+    g.fillStyle(0x2d3038, 1);
+    g.fillRect(7, 22, 4, 2); g.fillRect(14, 22, 4, 2); g.fillRect(21, 22, 4, 2);
+    g.fillStyle(0xc7ccd4, 1);
+    g.fillTriangle(6, 22, 12, 22, 9, 9);
+    g.fillTriangle(13, 22, 19, 22, 16, 6);
+    g.fillTriangle(20, 22, 26, 22, 23, 11);
+    g.fillStyle(0xf0f3f7, 1);
+    g.fillRect(9, 10, 1, 6); g.fillRect(16, 7, 1, 7); g.fillRect(23, 12, 1, 5);
+    g.fillStyle(0x1a1a20, 1);
+    g.fillRect(8, 21, 2, 1); g.fillRect(15, 21, 2, 1); g.fillRect(22, 21, 2, 1);
+    outline(g, 2, 3, 28, 26, 0x100a06);
   });
 
   make(scene, TEX.bomb, 16, 18, (g) => {

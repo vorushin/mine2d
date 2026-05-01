@@ -27,6 +27,7 @@ export const enum TileType {
   Bridge,
   WallReinforced,
   TurretFlame,
+  SpikeTrap,
 }
 
 export type MaterialId =
@@ -84,6 +85,7 @@ export const TILE_SPECS: Record<TileType, TileSpec> = {
 
   [TileType.WallReinforced]: { walkable: false, opaque: true, baseHp: 320, pickaxeTier: 2, dropMaterial: 'iron', dropCount: 1, tintColor: C(0x5a5a70) },
   [TileType.TurretFlame]: { walkable: false, opaque: true, baseHp: 50, pickaxeTier: 1, dropMaterial: 'iron', dropCount: 1, tintColor: C(0xff8030) },
+  [TileType.SpikeTrap]: { walkable: true, opaque: false, baseHp: 22, pickaxeTier: 0, dropMaterial: 'stone', dropCount: 1, tintColor: C(0xc7ccd4) },
 };
 
 export function isPlaceableGround(type: TileType): boolean {

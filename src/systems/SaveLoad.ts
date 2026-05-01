@@ -50,6 +50,7 @@ const TILE_NAMES: Record<TileType, string> = {
   [TileType.Bridge]: 'bridge',
   [TileType.WallReinforced]: 'wall_reinforced',
   [TileType.TurretFlame]: 'turret_flame',
+  [TileType.SpikeTrap]: 'spike_trap',
 };
 
 const NAME_TO_TILE: Record<string, TileType> = Object.fromEntries(

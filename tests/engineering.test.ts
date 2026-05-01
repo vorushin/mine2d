@@ -106,6 +106,20 @@ describe('useHammer', () => {
     if (r.ok) expect(r.material).toBe('iron');
     expect(world.tiles[1][1].hp).toBe(TILE_SPECS[TileType.WallReinforced].baseHp);
   });
+
+  it('repairs a spike trap using stone', () => {
+    const world = makeStubWorld();
+    setTile(world, 1, 1, TileType.SpikeTrap, 7);
+    const state = makeGameState();
+    addItem(state.inventory, 'stone', 2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = useHammer(world as any, 1, 1, state);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.material).toBe('stone');
+    expect(world.tiles[1][1].hp).toBe(TILE_SPECS[TileType.SpikeTrap].baseHp);
+    expect(hasItem(state.inventory, 'stone', 1)).toBe(true);
+    expect(hasItem(state.inventory, 'stone', 2)).toBe(false);
+  });
 });
 
 describe('bombExplosion', () => {

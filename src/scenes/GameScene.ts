@@ -22,9 +22,13 @@ import { ensureDailyQuest, questRewardLabel, recordQuestProgress } from '../syst
 import { applyPowerUp, damageMultiplierForState, randomPowerUpKind, tickPowerUps } from '../systems/PowerUps';
 import { NIGHT_TWISTS, NightTwist, chooseNightTwist, modifiedNightTarget } from '../systems/NightTwists';
 import { HERO_BLAST_DAMAGE, HERO_BLAST_MAX_CHARGE, HERO_BLAST_RADIUS_PX, addHeroCharge, canUseHeroBlast as canUseHeroBlastState, consumeHeroBlast, heroChargeForKill } from '../systems/HeroBlast';
-import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
+import { TileType, TILE_SPECS, MaterialId, isBreakable, isPlaceableGround } from '../world/tileTypes';
 import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
+
+const SPIKE_TRAP_DAMAGE = 7;
+const SPIKE_TRAP_TICK_MS = 650;
+const SPIKE_TRAP_TRIGGER_RADIUS = 18;
 
 export class GameScene extends Phaser.Scene {
   state!: GameState;
@@ -678,9 +682,10 @@ export class GameScene extends Phaser.Scene {
       const wantsWater = act.onto === 'water';
       const validSurface = wantsWater
         ? t.type === TileType.Water
-        : (t.type === TileType.Grass || t.type === TileType.Dirt);
+        : isPlaceableGround(t.type);
       if (!validSurface) {
         if (wantsWater) this.showHint('Bridges go on water');
+        else this.showHint('Build on clear ground');
         return;
       }
       if (!hotbarAvailable(this.state.hotbarSlot, this.state)) {
@@ -692,6 +697,7 @@ export class GameScene extends Phaser.Scene {
       sounds.place();
       this.state.stats.tilesPlaced += 1;
       this.recordDailyQuestProgress('build');
+      if (act.tile === TileType.SpikeTrap) this.showHint('Trap set: lure zombies over the spikes');
       if (act.tile === TileType.TurretBasic || act.tile === TileType.TurretFlame) {
         const kind =
           act.tile === TileType.TurretFlame ? 'flame' :
@@ -744,6 +750,7 @@ export class GameScene extends Phaser.Scene {
 
   private regenAccumMs = 0;
   private torchAccumMs = 0;
+  private trapAccumMs = 0;
 
   private applyTorchAuraDamage(): void {
     const radius = 80; // px
@@ -769,6 +776,35 @@ export class GameScene extends Phaser.Scene {
           this.effects.burst(z.sprite.x, z.sprite.y, 0xffa040, 2, 40, 250, 0.6);
           break;
         }
+      }
+    }
+  }
+
+  private applySpikeTrapDamage(): void {
+    const traps: { tx: number; ty: number; x: number; y: number }[] = [];
+    this.world.forEachTileOfType(TileType.SpikeTrap, (tx, ty) => {
+      const tile = this.world.getTileAt(tx, ty);
+      if (!tile || tile.hp <= 0) return;
+      const wc = this.world.tileToWorldCenter(tx, ty);
+      traps.push({ tx, ty, x: wc.x, y: wc.y });
+    });
+    if (traps.length === 0) return;
+
+    for (const trap of traps) {
+      let triggered = false;
+      for (const z of this.zombies) {
+        if (!z.alive) continue;
+        const d = Math.hypot(z.sprite.x - trap.x, z.sprite.y - trap.y);
+        if (d > SPIKE_TRAP_TRIGGER_RADIUS) continue;
+        triggered = true;
+        this.effects.burst(z.sprite.x, z.sprite.y, 0xc7ccd4, 4, 70, 300, 0.75);
+        this.popNumber(z.sprite.x, z.sprite.y - 18, `-${SPIKE_TRAP_DAMAGE}`, '#dce4ee');
+        if (z.takeDamage(SPIKE_TRAP_DAMAGE)) {
+          this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
+        }
+      }
+      if (triggered) {
+        this.world.damageTile(trap.tx, trap.ty, 1, { onDamage: () => sounds.wallHit() });
       }
     }
   }
@@ -856,6 +892,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const z of this.zombies) z.update(delta, this.player, this.zombies);
+
+    if (this.zombies.length > 0) {
+      this.trapAccumMs -= delta;
+      if (this.trapAccumMs <= 0) {
+        this.trapAccumMs = SPIKE_TRAP_TICK_MS;
+        this.applySpikeTrapDamage();
+      }
+    }
+
     // Zombies bite the dog if they're adjacent to it
     if (this.dog?.alive) {
       for (const z of this.zombies) {

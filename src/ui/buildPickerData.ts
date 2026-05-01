@@ -14,6 +14,7 @@ export const BUILD_PICKER_SLOTS: readonly number[] = [
   findIndex('Wall R'),
   findIndex('Door'),
   findIndex('Torch'),
+  findIndex('Trap'),
   findIndex('Bridge'),
   findIndex('Lava'),
   findIndex('Turret'),

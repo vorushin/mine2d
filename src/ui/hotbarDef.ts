@@ -99,6 +99,15 @@ export const HOTBAR: HotbarAction[] = [
   },
   {
     kind: 'place',
+    label: 'Trap',
+    name: 'Spike Trap',
+    description: 'Walkable floor trap that hurts zombies crossing it. Wears down with use. Cost: 2 wood + 2 stone.',
+    color: 0xc7ccd4,
+    tile: TileType.SpikeTrap,
+    cost: [{ material: 'wood', count: 2 }, { material: 'stone', count: 2 }],
+  },
+  {
+    kind: 'place',
     label: 'Turret',
     name: 'Arrow Turret',
     description: 'Auto-fires arrows at zombies in range. Endless ammo. Cost: 5 wood + 5 stone + 3 iron.',

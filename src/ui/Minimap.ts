@@ -58,6 +58,7 @@ export class Minimap {
         else if (t.type === TileType.Crater) c = 0x3a2410;
         else if (t.type === TileType.Bridge) c = 0x9c6a3f;
         else if (t.type === TileType.TurretFlame) c = 0xff8030;
+        else if (t.type === TileType.SpikeTrap) c = 0xc7ccd4;
         this.staticLayer.fillStyle(c, 1);
         this.staticLayer.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
       }

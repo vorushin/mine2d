@@ -70,6 +70,8 @@ describe('SaveLoad', () => {
     tiles[5][5].hp = 250;
     tiles[10][10].type = TileType.Bridge;
     tiles[10][10].hp = 6;
+    tiles[11][10].type = TileType.SpikeTrap;
+    tiles[11][10].hp = 9;
 
     const ok = SaveLoad.save({
       state,
@@ -101,6 +103,8 @@ describe('SaveLoad', () => {
     expect(loaded!.tiles[5][5].type).toBe(TileType.Volcano);
     expect(loaded!.tiles[5][5].hp).toBe(250);
     expect(loaded!.tiles[10][10].type).toBe(TileType.Bridge);
+    expect(loaded!.tiles[11][10].type).toBe(TileType.SpikeTrap);
+    expect(loaded!.tiles[11][10].hp).toBe(9);
     expect(loaded!.playerSpawn).toEqual({ x: 30, y: 30 });
     expect(loaded!.shopPos).toEqual({ x: 35, y: 32 });
     expect(loaded!.playerWorldPos).toEqual({ x: 960, y: 980 });
