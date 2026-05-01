@@ -5,7 +5,7 @@ import { TILE_SIZE, COLORS, ZOMBIE_BASE_HP, ZOMBIE_BASE_DAMAGE, ZOMBIE_BASE_SPEE
 import { TileType, TILE_SPECS } from '../world/tileTypes';
 import { bfsNextStep } from '../systems/Pathfinding';
 
-export type ZombieVariant = 'normal' | 'fast' | 'armored' | 'brute' | 'boss';
+export type ZombieVariant = 'normal' | 'fast' | 'armored' | 'brute' | 'goblin' | 'boss';
 
 export function bruteChanceForNight(night: number): number {
   const arr = BRUTE_CHANCE_BY_NIGHT;
@@ -64,6 +64,18 @@ export function specForNight(night: number): ZombieSpec {
   };
 }
 
+/** Small, quick loot raider used during Goblin Raid nights. */
+export function specForGoblin(night: number): ZombieSpec {
+  const scale = 1 + Math.max(0, night - 1) * 0.06;
+  return {
+    variant: 'goblin',
+    hp: ZOMBIE_BASE_HP * 0.95 * scale,
+    damage: ZOMBIE_BASE_DAMAGE * 0.75 * scale,
+    speed: ZOMBIE_BASE_SPEED * 1.75,
+    tint: 0x6bd05a,
+  };
+}
+
 /** Big boss zombie. Used once every 5 nights. */
 export function specForBoss(night: number): ZombieSpec {
   const tier = Math.floor(night / 5);
@@ -86,6 +98,7 @@ export function generateZombieTextures(scene: Phaser.Scene): void {
   drawFastZombie(scene);
   drawArmoredZombie(scene);
   drawBruteZombie(scene);
+  drawGoblin(scene);
   drawBossZombie(scene);
 }
 
@@ -422,6 +435,90 @@ function drawBruteZombie(scene: Phaser.Scene): void {
   g.destroy();
 }
 
+// --- Goblin: sneaky green raider, fast and loot-carrying -------------------------------
+
+function drawGoblin(scene: Phaser.Scene): void {
+  const key = 'zombie_goblin';
+  if (scene.textures.exists(key)) return;
+  const W = 20, H = 24;
+  const g = scene.add.graphics();
+
+  const skin = 0x5fbf46;
+  const skinDark = 0x2f7a2a;
+  const skinLit = 0x94e66b;
+  const leather = 0x5a3420;
+  const sack = 0xb8863b;
+
+  // Ears
+  g.fillStyle(skinDark, 1);
+  g.fillRect(1, 5, 4, 3);
+  g.fillRect(15, 5, 4, 3);
+  g.fillStyle(skinLit, 1);
+  g.fillRect(2, 5, 2, 1);
+  g.fillRect(16, 5, 2, 1);
+
+  // Head
+  g.fillStyle(skin, 1);
+  g.fillRect(5, 2, 10, 9);
+  g.fillStyle(skinDark, 1);
+  g.fillRect(5, 10, 10, 1);
+  g.fillRect(13, 4, 2, 6);
+  g.fillStyle(skinLit, 1);
+  g.fillRect(5, 3, 1, 4);
+
+  // Eyes and grin
+  g.fillStyle(0xfff184, 1);
+  g.fillRect(7, 5, 2, 2);
+  g.fillRect(12, 5, 2, 2);
+  g.fillStyle(0x1a0604, 1);
+  g.fillRect(7, 6, 1, 1);
+  g.fillRect(12, 6, 1, 1);
+  g.fillRect(8, 9, 5, 1);
+  g.fillStyle(0xffffff, 1);
+  g.fillRect(9, 9, 1, 2);
+  g.fillRect(12, 9, 1, 2);
+
+  // Tunic
+  g.fillStyle(leather, 1);
+  g.fillRect(4, 11, 12, 8);
+  g.fillStyle(0x7a4a2b, 1);
+  g.fillRect(5, 11, 10, 1);
+  g.fillStyle(0xffd166, 1);
+  g.fillRect(9, 13, 2, 2);
+
+  // Loot sack slung over shoulder
+  g.fillStyle(sack, 1);
+  g.fillRect(13, 12, 5, 6);
+  g.fillStyle(0x8a5a28, 1);
+  g.fillRect(13, 17, 5, 1);
+  g.fillStyle(0xffd700, 1);
+  g.fillRect(15, 13, 1, 1);
+  g.fillRect(17, 15, 1, 1);
+
+  // Arms and dagger
+  g.fillStyle(skin, 1);
+  g.fillRect(1, 12, 3, 6);
+  g.fillRect(16, 12, 3, 5);
+  g.fillStyle(0xcfd6e0, 1);
+  g.fillRect(0, 17, 4, 1);
+  g.fillStyle(0xffffff, 1);
+  g.fillRect(0, 17, 2, 1);
+
+  // Legs
+  g.fillStyle(0x2a2018, 1);
+  g.fillRect(6, 19, 3, 4);
+  g.fillRect(11, 19, 3, 4);
+  g.fillStyle(0x0a0a0a, 1);
+  g.fillRect(5, 22, 4, 2);
+  g.fillRect(11, 22, 4, 2);
+
+  outlineRect(g, 5, 2, 10, 9, 0x0a0a0a);
+  outlineRect(g, 4, 11, 12, 8, 0x0a0a0a);
+
+  g.generateTexture(key, W, H);
+  g.destroy();
+}
+
 // --- Boss: towering armored abomination with horns, runes, cape -------------------------
 
 function drawBossZombie(scene: Phaser.Scene): void {
@@ -580,6 +677,7 @@ export class Zombie {
     this.world = world;
     const key =
       spec.variant === 'boss' ? 'zombie_boss' :
+      spec.variant === 'goblin' ? 'zombie_goblin' :
       spec.variant === 'fast' ? 'zombie_fast' :
       spec.variant === 'armored' ? 'zombie_armored' :
       spec.variant === 'brute' ? 'zombie_brute' :
@@ -589,11 +687,13 @@ export class Zombie {
     const shadowW =
       spec.variant === 'boss' ? 60 :
       spec.variant === 'brute' ? 44 :
+      spec.variant === 'goblin' ? 20 :
       spec.variant === 'armored' ? 32 :
       spec.variant === 'fast' ? 22 : 26;
     const shadowOffY =
       spec.variant === 'boss' ? 34 :
       spec.variant === 'brute' ? 26 :
+      spec.variant === 'goblin' ? 15 :
       spec.variant === 'armored' ? 20 :
       spec.variant === 'fast' ? 16 : 18;
     const shadowH = spec.variant === 'boss' ? 10 : spec.variant === 'brute' ? 8 : 6;
@@ -605,6 +705,7 @@ export class Zombie {
     const scale =
       spec.variant === 'boss' ? 1.8 :
       spec.variant === 'brute' ? 1.9 :
+      spec.variant === 'goblin' ? 1.25 :
       spec.variant === 'armored' ? 1.6 :
       spec.variant === 'fast' ? 1.25 : 1.4;
     this.sprite.setScale(scale);

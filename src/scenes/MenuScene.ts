@@ -26,7 +26,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     // Sprite showcase at bottom
-    const decor = [TEX.tree, TEX.stone, TEX.iron_ore, TEX.gold_ore, TEX.torch, TEX.chest, TEX.shop_npc, 'zombie_normal', 'zombie_fast', 'zombie_armored'];
+    const decor = [TEX.tree, TEX.stone, TEX.iron_ore, TEX.gold_ore, TEX.torch, TEX.chest, TEX.shop_npc, 'zombie_goblin', 'zombie_normal', 'zombie_fast', 'zombie_armored'];
     const totalDecorW = decor.length * 64;
     const startX = (w - totalDecorW) / 2 + 32;
     for (let i = 0; i < decor.length; i++) {
@@ -88,7 +88,7 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start('Game');
     });
 
-    const hint = 'WASD/Joystick move  ·  Click/Tap use item  ·  1-0 hotbar  ·  C craft  ·  E interact  ·  N night  ·  H help';
+    const hint = 'WASD/Joystick move  ·  Click/Tap use item  ·  1-6 hotbar  ·  R Hero Blast  ·  C craft  ·  E interact  ·  H help';
     this.add.text(w / 2, h - 24, hint, { fontFamily: 'ui-monospace, monospace', fontSize: '12px', color: '#7a8595' }).setOrigin(0.5);
   }
 }

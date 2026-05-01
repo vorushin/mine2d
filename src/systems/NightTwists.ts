@@ -1,4 +1,4 @@
-export type NightTwistKind = 'normal' | 'swarm' | 'treasure' | 'runners';
+export type NightTwistKind = 'normal' | 'swarm' | 'treasure' | 'runners' | 'goblins';
 
 export interface NightTwist {
   kind: NightTwistKind;
@@ -7,6 +7,7 @@ export interface NightTwist {
   targetMultiplier: number;
   lootMultiplier: number;
   runnerChance: number;
+  goblinChance: number;
 }
 
 export const NIGHT_TWISTS: Record<NightTwistKind, NightTwist> = {
@@ -17,6 +18,7 @@ export const NIGHT_TWISTS: Record<NightTwistKind, NightTwist> = {
     targetMultiplier: 1,
     lootMultiplier: 1,
     runnerChance: 0,
+    goblinChance: 0,
   },
   swarm: {
     kind: 'swarm',
@@ -25,6 +27,7 @@ export const NIGHT_TWISTS: Record<NightTwistKind, NightTwist> = {
     targetMultiplier: 1.35,
     lootMultiplier: 1.15,
     runnerChance: 0,
+    goblinChance: 0,
   },
   treasure: {
     kind: 'treasure',
@@ -33,6 +36,7 @@ export const NIGHT_TWISTS: Record<NightTwistKind, NightTwist> = {
     targetMultiplier: 1,
     lootMultiplier: 1.8,
     runnerChance: 0,
+    goblinChance: 0,
   },
   runners: {
     kind: 'runners',
@@ -41,15 +45,26 @@ export const NIGHT_TWISTS: Record<NightTwistKind, NightTwist> = {
     targetMultiplier: 1.1,
     lootMultiplier: 1.2,
     runnerChance: 0.45,
+    goblinChance: 0,
+  },
+  goblins: {
+    kind: 'goblins',
+    label: 'Goblin Raid',
+    subtitle: 'Fast little thieves carry bonus loot.',
+    targetMultiplier: 1.15,
+    lootMultiplier: 1.25,
+    runnerChance: 0,
+    goblinChance: 0.55,
   },
 };
 
 export function chooseNightTwist(night: number, rand = Math.random): NightTwist {
   if (night <= 1 || night % 5 === 0) return NIGHT_TWISTS.normal;
   const roll = rand();
-  if (night >= 4 && roll < 0.22) return NIGHT_TWISTS.runners;
-  if (roll < 0.48) return NIGHT_TWISTS.swarm;
-  if (roll < 0.72) return NIGHT_TWISTS.treasure;
+  if (night >= 3 && roll < 0.2) return NIGHT_TWISTS.goblins;
+  if (night >= 4 && roll < 0.4) return NIGHT_TWISTS.runners;
+  if (roll < 0.62) return NIGHT_TWISTS.swarm;
+  if (roll < 0.82) return NIGHT_TWISTS.treasure;
   return NIGHT_TWISTS.normal;
 }
 

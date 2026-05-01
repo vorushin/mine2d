@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bruteChanceForNight } from '../src/entities/Zombie';
+import { bruteChanceForNight, specForGoblin } from '../src/entities/Zombie';
 import { BRUTE_CHANCE_BY_NIGHT } from '../src/config';
 import { RECIPES, applyCraft } from '../src/systems/Crafting';
 import { makeGameState, addItem, hasItem } from '../src/state/GameState';
@@ -19,6 +19,15 @@ describe('bruteChanceForNight', () => {
   it('uses the last table entry for nights beyond the table', () => {
     const last = BRUTE_CHANCE_BY_NIGHT[BRUTE_CHANCE_BY_NIGHT.length - 1];
     expect(bruteChanceForNight(100)).toBe(last);
+  });
+});
+
+describe('goblin spec', () => {
+  it('is a fast low-damage raider', () => {
+    const g = specForGoblin(3);
+    expect(g.variant).toBe('goblin');
+    expect(g.speed).toBeGreaterThan(60);
+    expect(g.damage).toBeLessThan(6);
   });
 });
 

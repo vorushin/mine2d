@@ -91,6 +91,7 @@ export interface SaveData {
     hotbarSlot: number;
     inventory: Record<string, number>;
     activeBuffs?: { hasteMs?: number; furyMs?: number; shieldMs?: number };
+    heroCharge?: number;
   };
   cycle: {
     phase: GameState['phase'];
@@ -188,6 +189,7 @@ function serialize(snap: SaveSnapshot): SaveData {
       hotbarSlot: snap.state.hotbarSlot,
       inventory: { ...snap.state.inventory.counts } as Record<string, number>,
       activeBuffs: { ...snap.state.activeBuffs },
+      heroCharge: snap.state.heroCharge,
     },
     cycle: {
       phase: snap.state.phase,
@@ -325,6 +327,7 @@ function deserialize(raw: unknown): SaveSnapshot | null {
     furyMs: Math.max(0, numberOr(activeBuffs.furyMs, 0)),
     shieldMs: Math.max(0, numberOr(activeBuffs.shieldMs, 0)),
   };
+  state.heroCharge = Math.max(0, Math.min(100, numberOr(p.heroCharge, 0)));
   state.phase = stringOr(cyc.phase, VALID_PHASES, 'day');
   state.phaseElapsedMs = Math.max(0, numberOr(cyc.phaseElapsedMs, 0));
   state.nightNumber = Math.max(1, intOr(cyc.nightNumber, 1));

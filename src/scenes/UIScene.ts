@@ -14,6 +14,7 @@ import { HelpOverlay } from '../ui/HelpOverlay';
 import { Minimap } from '../ui/Minimap';
 import { questProgressLabel, questRewardLabel } from '../systems/DailyQuests';
 import { POWER_UP_SPECS } from '../systems/PowerUps';
+import { HERO_BLAST_MAX_CHARGE } from '../systems/HeroBlast';
 
 export class UIScene extends Phaser.Scene {
   private gameScene!: GameScene;
@@ -46,6 +47,8 @@ export class UIScene extends Phaser.Scene {
   private questLabel!: Phaser.GameObjects.Text;
   private buffBg!: Phaser.GameObjects.Rectangle;
   private buffLabel!: Phaser.GameObjects.Text;
+  private heroBar!: Phaser.GameObjects.Graphics;
+  private heroLabel!: Phaser.GameObjects.Text;
   private invPanel!: Phaser.GameObjects.Container;
   private invChips: { bg: Phaser.GameObjects.Rectangle; swatch: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text; key: string }[] = [];
   private joystick?: VirtualJoystick;
@@ -102,6 +105,12 @@ export class UIScene extends Phaser.Scene {
       this.orientationOverlay = new OrientationOverlay(this);
       this.overflowMenu = new OverflowMenu(this, [
         { icon: '?', label: 'Help', onPress: () => this.toggleHelp() },
+        {
+          icon: '⚡',
+          label: 'Hero Blast',
+          onPress: () => this.gameScene.useHeroBlast(),
+          isVisible: () => this.state.heroCharge >= HERO_BLAST_MAX_CHARGE,
+        },
         {
           icon: '⏵',
           label: 'Skip to Night',
@@ -261,6 +270,11 @@ export class UIScene extends Phaser.Scene {
       .setDepth(500);
     this.buffLabel = this.add.text(0, 0, '', {
       fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: '#caffca',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
+    this.heroBar = this.add.graphics();
+    this.heroBar.setScrollFactor(0).setDepth(500);
+    this.heroLabel = this.add.text(0, 0, '', {
+      fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: '#d8f6ff', fontStyle: 'bold',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
     this.nightLabel = this.add.text(0, 0, '', {
       fontFamily: 'system-ui', fontSize: '14px', color: '#fff', fontStyle: 'bold',
@@ -538,6 +552,7 @@ export class UIScene extends Phaser.Scene {
     this.phaseLabel.setText(`${this.state.phase.toUpperCase()}`).setPosition(this.scale.width / 2, 20);
     this.renderQuestHud();
     this.renderBuffHud();
+    this.renderHeroBlastHud();
     const kills = this.state.stats?.zombiesKilled ?? 0;
     const extra = this.state.phase === 'night' ? `   •   zombies ${this.gameScene.zombies.filter((z) => z.alive).length}` : '';
     const rex = this.gameScene.dog?.alive ? `   •   🐶 Lv ${this.gameScene.dog.level}` : '';
@@ -588,6 +603,23 @@ export class UIScene extends Phaser.Scene {
     this.buffLabel.setText(`Powers: ${active.join('  |  ')}`).setPosition(w / 2, y);
     this.buffBg.setVisible(true);
     this.buffLabel.setVisible(true);
+  }
+
+  private renderHeroBlastHud(): void {
+    const w = this.scale.width;
+    const pct = Math.max(0, Math.min(1, this.state.heroCharge / HERO_BLAST_MAX_CHARGE));
+    const barW = Math.min(320, Math.max(220, w - 320));
+    const x = w / 2 - barW / 2;
+    const y = this.joystick ? 136 : 106;
+    this.heroBar.clear();
+    this.heroBar.fillStyle(0x101722, 0.8);
+    this.heroBar.fillRoundedRect(x, y, barW, 12, 6);
+    this.heroBar.fillStyle(pct >= 1 ? 0x4dd7ff : 0x2f6fd6, 1);
+    this.heroBar.fillRoundedRect(x, y, barW * pct, 12, 6);
+    this.heroBar.lineStyle(1, pct >= 1 ? 0xffffff : 0x88aaff, 0.75);
+    this.heroBar.strokeRoundedRect(x, y, barW, 12, 6);
+    this.heroLabel.setText(pct >= 1 ? 'HERO BLAST READY - R' : `Hero Blast ${Math.floor(pct * 100)}%`);
+    this.heroLabel.setPosition(w / 2, y + 25);
   }
 
   private renderHotbar(): void {

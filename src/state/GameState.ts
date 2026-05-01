@@ -75,6 +75,7 @@ export interface GameState {
   stats: RunStats;
   dailyQuest: DailyQuest | null;
   activeBuffs: ActiveBuffs;
+  heroCharge: number;
 }
 
 export function makeGameState(): GameState {
@@ -96,5 +97,6 @@ export function makeGameState(): GameState {
     stats: { zombiesKilled: 0, tilesMined: 0, tilesPlaced: 0, goldEarned: 0 },
     dailyQuest: null,
     activeBuffs: { hasteMs: 0, furyMs: 0, shieldMs: 0 },
+    heroCharge: 0,
   };
 }

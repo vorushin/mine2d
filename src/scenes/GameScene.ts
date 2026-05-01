@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH, COLORS, PLAYER_MAX_HP, PLAYER_REACH_TILES } from '../config';
 import { World } from '../world/World';
 import { Player } from '../entities/Player';
-import { Zombie, ZombieSpec, specForNight, specForBoss } from '../entities/Zombie';
+import { Zombie, ZombieSpec, ZombieVariant, specForNight, specForGoblin, specForBoss } from '../entities/Zombie';
 import { Projectile, ProjectileSpawn } from '../entities/Projectile';
 import { TurretInstance, makeTurretBarrel, tickTurrets } from '../entities/Turret';
 import { Pickup } from '../entities/Pickup';
@@ -21,6 +21,7 @@ import { DailyQuestKind, GameState, PowerUpKind, makeGameState, addItem, removeI
 import { ensureDailyQuest, questRewardLabel, recordQuestProgress } from '../systems/DailyQuests';
 import { applyPowerUp, damageMultiplierForState, randomPowerUpKind, tickPowerUps } from '../systems/PowerUps';
 import { NIGHT_TWISTS, NightTwist, chooseNightTwist, modifiedNightTarget } from '../systems/NightTwists';
+import { HERO_BLAST_DAMAGE, HERO_BLAST_MAX_CHARGE, HERO_BLAST_RADIUS_PX, addHeroCharge, canUseHeroBlast as canUseHeroBlastState, consumeHeroBlast, heroChargeForKill } from '../systems/HeroBlast';
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
 import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
@@ -279,6 +280,7 @@ export class GameScene extends Phaser.Scene {
       sounds.ensure();
       this.scene.get('UI').events.emit('open_modal', 'craft');
     });
+    this.input.keyboard?.on('keydown-R', () => this.useHeroBlast());
 
     // Shift — dash
     this.input.keyboard?.on('keydown-SHIFT', () => {
@@ -305,7 +307,7 @@ export class GameScene extends Phaser.Scene {
       sounds.zombieHit();
       if (dmg !== undefined) this.popNumber(x, y - 12, `-${dmg}`, '#ffccaa');
     });
-    this.events.on('dog_killed_zombie', (x: number, y: number, variant?: string) => {
+    this.events.on('dog_killed_zombie', (x: number, y: number, variant?: ZombieVariant) => {
       this.onZombieKilled(x, y, variant);
     });
     this.events.on('dog_pet', () => {
@@ -1029,6 +1031,59 @@ export class GameScene extends Phaser.Scene {
     this.popNumber(this.player.x, this.player.y - 28, rewardText, '#ffd166');
     this.showBanner('🎯 QUEST COMPLETE', `${completion.quest.title} · ${rewardText}`);
     this.spawnPowerOrb(randomPowerUpKind(this.state.nightNumber + completion.quest.goal), this.player.x, this.player.y - 10);
+    this.gainHeroCharge(30);
+  }
+
+  private gainHeroCharge(amount: number): void {
+    const before = this.state.heroCharge;
+    const after = addHeroCharge(this.state, amount);
+    if (before < HERO_BLAST_MAX_CHARGE && after >= HERO_BLAST_MAX_CHARGE) {
+      this.showHint('⚡ Hero Blast ready! Press R');
+      this.effects.burst(this.player.x, this.player.y - 8, 0x4dd7ff, 18, 120, 650, 1.25);
+      sounds.pickup();
+    }
+  }
+
+  canUseHeroBlast(): boolean {
+    return canUseHeroBlastState(this.state);
+  }
+
+  useHeroBlast(): boolean {
+    if (!canUseHeroBlastState(this.state)) {
+      this.showHint('Hero Blast is still charging');
+      return false;
+    }
+
+    const victims = this.zombies.filter((z) => z.alive && Math.hypot(z.sprite.x - this.player.x, z.sprite.y - this.player.y) <= HERO_BLAST_RADIUS_PX);
+    if (victims.length === 0) {
+      this.showHint('No enemies in Hero Blast range');
+      return false;
+    }
+
+    consumeHeroBlast(this.state);
+    sounds.bossRoar();
+    this.cameras.main.shake(260, 0.01);
+    const ring = this.add.circle(this.player.x, this.player.y, 26, 0x4dd7ff, 0.14)
+      .setStrokeStyle(4, 0xffffff, 0.95)
+      .setDepth(80);
+    this.tweens.add({
+      targets: ring,
+      scale: HERO_BLAST_RADIUS_PX / 26,
+      alpha: 0,
+      duration: 280,
+      onComplete: () => ring.destroy(),
+    });
+    this.effects.burst(this.player.x, this.player.y, 0x4dd7ff, 42, 240, 900, 1.8);
+    this.showHint(`⚡ Hero Blast hit ${victims.length}!`);
+
+    for (const z of victims) {
+      const zx = z.sprite.x;
+      const zy = z.sprite.y;
+      this.effects.bloodBurst(zx, zy, z.variant === 'goblin' ? 0x5fbf46 : 0x8a1a1a);
+      this.popNumber(zx, zy - 18, `-${HERO_BLAST_DAMAGE}`, '#9eefff');
+      if (z.takeDamage(HERO_BLAST_DAMAGE)) this.onZombieKilled(zx, zy, z.variant);
+    }
+    return true;
   }
 
   private playerDamage(base: number): number {
@@ -1055,6 +1110,7 @@ export class GameScene extends Phaser.Scene {
     chicken.capture();
     addItem(this.state.inventory, 'gold', 12);
     this.state.stats.goldEarned += 12;
+    this.gainHeroCharge(20);
     this.effects.burst(x, y, 0xffd700, 28, 170, 850, 1.7);
     this.popNumber(x, y - 18, '+12 gold', '#ffd166');
     this.showBanner('✨ GOLDEN CHICKEN', '+12 gold');
@@ -1081,6 +1137,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private specForSpawn(): ZombieSpec {
+    if (this.nightTwist.goblinChance > 0 && Math.random() < this.nightTwist.goblinChance) {
+      return specForGoblin(this.state.nightNumber);
+    }
     const spec = specForNight(this.state.nightNumber);
     if (this.nightTwist.runnerChance > 0 && spec.variant === 'normal' && Math.random() < this.nightTwist.runnerChance) {
       return {
@@ -1114,13 +1173,14 @@ export class GameScene extends Phaser.Scene {
     this.showBanner('⚠ BOSS', 'a huge zombie approaches');
   }
 
-  private onZombieKilled(x: number, y: number, variant?: string): void {
+  private onZombieKilled(x: number, y: number, variant?: ZombieVariant): void {
     this.scene.get('UI').events.emit('zombie_killed');
     sounds.zombieDie();
     this.effects.bloodExplode(x, y);
     this.cameras.main.shake(60, 0.002);
     this.state.stats.zombiesKilled += 1;
     this.recordDailyQuestProgress('kill');
+    this.gainHeroCharge(heroChargeForKill(variant));
 
     // Combo: consecutive kills within 2 seconds of each other
     this.combo += 1;
@@ -1158,6 +1218,11 @@ export class GameScene extends Phaser.Scene {
     const comboGoldBonus = Math.min(3, Math.floor(this.combo / 5));
     const moonMult = (this.bloodMoon ? 1.5 : 1) * this.nightTwist.lootMultiplier;
     const drops: { m: MaterialId; c: number }[] = [];
+    if (variant === 'goblin') {
+      drops.push({ m: 'gold', c: 2 + Math.floor(this.state.nightNumber / 4) });
+      if (Math.random() < 0.35) drops.push({ m: 'bomb', c: 1 });
+      if (Math.random() < 0.5) drops.push({ m: 'arrow', c: 4 });
+    }
     if (Math.random() < 0.75 * moonMult) drops.push({ m: 'gold', c: 1 + comboGoldBonus });
     if (Math.random() < 0.32 * moonMult) drops.push({ m: 'wood', c: 1 });
     if (Math.random() < 0.16 * moonMult) drops.push({ m: 'stone', c: 1 });

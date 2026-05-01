@@ -8,9 +8,10 @@ describe('NightTwists', () => {
   });
 
   it('selects special nights from deterministic rolls', () => {
-    expect(chooseNightTwist(4, () => 0.1).kind).toBe('runners');
-    expect(chooseNightTwist(3, () => 0.3).kind).toBe('swarm');
-    expect(chooseNightTwist(3, () => 0.6).kind).toBe('treasure');
+    expect(chooseNightTwist(3, () => 0.1).kind).toBe('goblins');
+    expect(chooseNightTwist(4, () => 0.3).kind).toBe('runners');
+    expect(chooseNightTwist(3, () => 0.5).kind).toBe('swarm');
+    expect(chooseNightTwist(3, () => 0.7).kind).toBe('treasure');
     expect(chooseNightTwist(3, () => 0.9).kind).toBe('normal');
   });
 
@@ -18,5 +19,6 @@ describe('NightTwists', () => {
     expect(modifiedNightTarget(20, NIGHT_TWISTS.normal)).toBe(20);
     expect(modifiedNightTarget(20, NIGHT_TWISTS.swarm)).toBe(27);
     expect(modifiedNightTarget(20, NIGHT_TWISTS.runners)).toBe(22);
+    expect(modifiedNightTarget(20, NIGHT_TWISTS.goblins)).toBe(23);
   });
 });

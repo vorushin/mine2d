@@ -49,6 +49,7 @@ describe('SaveLoad', () => {
     state.playerHp = 80;
     state.hasBow = true;
     state.activeBuffs = { hasteMs: 3000, furyMs: 0, shieldMs: 7000 };
+    state.heroCharge = 80;
     addItem(state.inventory, 'wood', 17);
     addItem(state.inventory, 'gold', 9);
     state.stats = { zombiesKilled: 42, tilesMined: 10, tilesPlaced: 8, goldEarned: 12 };
@@ -90,6 +91,7 @@ describe('SaveLoad', () => {
     expect(loaded!.state.playerHp).toBe(80);
     expect(loaded!.state.hasBow).toBe(true);
     expect(loaded!.state.activeBuffs).toEqual({ hasteMs: 3000, furyMs: 0, shieldMs: 7000 });
+    expect(loaded!.state.heroCharge).toBe(80);
     expect(loaded!.state.inventory.counts.wood).toBe(17);
     expect(loaded!.state.inventory.counts.gold).toBe(9);
     expect(loaded!.state.stats.zombiesKilled).toBe(42);
@@ -136,6 +138,7 @@ describe('SaveLoad', () => {
     expect(loaded!.state.stats.zombiesKilled).toBe(0);
     expect(loaded!.state.dailyQuest).toBeNull();
     expect(loaded!.state.activeBuffs).toEqual({ hasteMs: 0, furyMs: 0, shieldMs: 0 });
+    expect(loaded!.state.heroCharge).toBe(0);
     expect(loaded!.dog).toBeNull();
     // Tile grid is all grass (defaults)
     expect(loaded!.tiles[0][0].type).toBe(TileType.Grass);
