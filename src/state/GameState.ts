@@ -49,6 +49,14 @@ export interface DailyQuest {
   completed: boolean;
 }
 
+export type PowerUpKind = 'haste' | 'fury' | 'shield';
+
+export interface ActiveBuffs {
+  hasteMs: number;
+  furyMs: number;
+  shieldMs: number;
+}
+
 export interface GameState {
   nightNumber: number;
   score: number;
@@ -66,6 +74,7 @@ export interface GameState {
   running: boolean;
   stats: RunStats;
   dailyQuest: DailyQuest | null;
+  activeBuffs: ActiveBuffs;
 }
 
 export function makeGameState(): GameState {
@@ -86,5 +95,6 @@ export function makeGameState(): GameState {
     running: true,
     stats: { zombiesKilled: 0, tilesMined: 0, tilesPlaced: 0, goldEarned: 0 },
     dailyQuest: null,
+    activeBuffs: { hasteMs: 0, furyMs: 0, shieldMs: 0 },
   };
 }

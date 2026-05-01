@@ -5,6 +5,7 @@ import { World } from '../world/World';
 import { TileType, TILE_SPECS } from '../world/tileTypes';
 import { TEX } from '../gfx/textures';
 import { sounds } from '../systems/Sound';
+import { incomingDamageMultiplierForState, speedMultiplierForState } from '../systems/PowerUps';
 
 export class Player {
   readonly sprite: Phaser.GameObjects.Image;
@@ -64,7 +65,7 @@ export class Player {
     if (!this.state.running) return;
     if (this.dashMs > 0) this.dashMs -= deltaMs;
     if (this.dashCooldownMs > 0) this.dashCooldownMs -= deltaMs;
-    const speedMult = this.dashMs > 0 ? 2.2 : 1;
+    const speedMult = (this.dashMs > 0 ? 2.2 : 1) * speedMultiplierForState(this.state);
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(moveX * PLAYER_SPEED * speedMult, moveY * PLAYER_SPEED * speedMult);
 
@@ -157,10 +158,11 @@ export class Player {
   triggerAttackCooldown(ms: number): void { this.attackCooldownMs = ms; }
 
   hurt(amount: number): void {
-    this.state.playerHp -= amount;
+    const dealt = amount * incomingDamageMultiplierForState(this.state);
+    this.state.playerHp -= dealt;
     if (this.state.playerHp < 0) this.state.playerHp = 0;
     this.scene.cameras.main.shake(80, 0.004);
-    this.sprite.setTint(0xff6a6a);
+    this.sprite.setTint(this.state.activeBuffs.shieldMs > 0 ? 0x9cff9c : 0xff6a6a);
     this.scene.time.delayedCall(100, () => this.sprite.clearTint());
   }
 

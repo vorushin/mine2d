@@ -23,6 +23,9 @@ const CONTROLS: [string, string][] = [
 
 const EVENTS: [string, string][] = [
   ['🎯 Daily Quest', 'Follow the HUD goal for bonus resources'],
+  ['⚡ Power Orbs', 'Combo kills, quests, and bosses can drop temporary powers'],
+  ['FAST / HIT / SAFE', 'Move faster, hit harder, or take less damage'],
+  ['🌙 Night Twists', 'Some nights become swarms, treasure runs, or runner attacks'],
   ['🐶 Rex', 'Your companion — helps fight and revives at dawn'],
   ['🐔 Chickens', 'Harmless wildlife. Touch golden chickens to catch them'],
   ['🌉 Bridge', 'Place on water to walk across the lake'],

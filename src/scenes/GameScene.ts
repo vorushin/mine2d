@@ -2,10 +2,11 @@ import Phaser from 'phaser';
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH, COLORS, PLAYER_MAX_HP, PLAYER_REACH_TILES } from '../config';
 import { World } from '../world/World';
 import { Player } from '../entities/Player';
-import { Zombie, specForNight, specForBoss } from '../entities/Zombie';
+import { Zombie, ZombieSpec, specForNight, specForBoss } from '../entities/Zombie';
 import { Projectile, ProjectileSpawn } from '../entities/Projectile';
 import { TurretInstance, makeTurretBarrel, tickTurrets } from '../entities/Turret';
 import { Pickup } from '../entities/Pickup';
+import { PowerOrb } from '../entities/PowerOrb';
 import { Dog } from '../entities/Dog';
 import { Chicken } from '../entities/Chicken';
 import { InputSystem } from '../systems/Input';
@@ -16,8 +17,10 @@ import { sounds } from '../systems/Sound';
 import { Effects } from '../gfx/Effects';
 import { WorldEvents } from '../systems/WorldEvents';
 import { useHammer, bombExplosion, BombVictim } from '../systems/Engineering';
-import { DailyQuestKind, GameState, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
+import { DailyQuestKind, GameState, PowerUpKind, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
 import { ensureDailyQuest, questRewardLabel, recordQuestProgress } from '../systems/DailyQuests';
+import { applyPowerUp, damageMultiplierForState, randomPowerUpKind, tickPowerUps } from '../systems/PowerUps';
+import { NIGHT_TWISTS, NightTwist, chooseNightTwist, modifiedNightTarget } from '../systems/NightTwists';
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
 import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
@@ -33,10 +36,12 @@ export class GameScene extends Phaser.Scene {
   projectiles: Projectile[] = [];
   turrets: TurretInstance[] = [];
   pickups: Pickup[] = [];
+  powerOrbs: PowerOrb[] = [];
   dog?: Dog;
   chickens: Chicken[] = [];
   input2!: InputSystem;
   readonly events2 = new Phaser.Events.EventEmitter();
+  nightTwist: NightTwist = NIGHT_TWISTS.normal;
   private nightSpawned = 0;
   private nightTarget = 0;
   private nightSpawnTimerMs = 0;
@@ -132,8 +137,10 @@ export class GameScene extends Phaser.Scene {
     this.input2 = new InputSystem(this);
     this.cycle = new DayNightCycle(this.state);
 
-    this.cycle.events.on('night_started', (_n: number, target: number) => {
+    this.cycle.events.on('night_started', (_n: number, baseTarget: number) => {
       this.nightSpawned = 0;
+      this.nightTwist = chooseNightTwist(this.state.nightNumber);
+      const target = modifiedNightTarget(baseTarget, this.nightTwist);
       this.nightTarget = target;
       this.nightSpawnTimerMs = 0;
       this.bossSpawned = false;
@@ -142,7 +149,9 @@ export class GameScene extends Phaser.Scene {
       this.bloodMoon = isBossNight;
       const sub = isBossNight
         ? `🩸 BLOOD MOON  ·  ${target} zombies + BOSS`
-        : `${target} zombies incoming`;
+        : this.nightTwist.kind !== 'normal'
+          ? `${this.nightTwist.label}  ·  ${target} zombies  ·  ${this.nightTwist.subtitle}`
+          : `${target} zombies incoming`;
       this.showBanner(`NIGHT ${this.state.nightNumber}`, sub);
       if (isBossNight) this.cameras.main.shake(400, 0.006);
     });
@@ -150,6 +159,7 @@ export class GameScene extends Phaser.Scene {
       for (const z of this.zombies) z.die();
       this.zombies = [];
       this.bloodMoon = false;
+      this.nightTwist = NIGHT_TWISTS.normal;
       sounds.dawn();
       // +max HP every time you survive
       this.state.playerMaxHp += 15;
@@ -558,7 +568,7 @@ export class GameScene extends Phaser.Scene {
       if (dist > PLAYER_REACH_TILES) return;
       if (this.player.attackCooldown() > 0) return;
       this.player.triggerAttackCooldown(300);
-      const dmg = this.player.meleeAttackDamage();
+      const dmg = this.playerDamage(this.player.meleeAttackDamage());
       let hitSomething = false;
       for (const z of this.zombies) {
         if (!z.alive) continue;
@@ -605,7 +615,7 @@ export class GameScene extends Phaser.Scene {
         y: this.player.y + aim.dy * TILE_SIZE * 0.4,
         dx: aim.dx,
         dy: aim.dy,
-        damage: act.weapon === 'bow' ? 14 : 30,
+        damage: this.playerDamage(act.weapon === 'bow' ? 14 : 30),
         owner: 'player',
         kind: act.weapon === 'bow' ? 'arrow' : 'bullet',
       };
@@ -765,6 +775,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.state.running) return;
     const mv = this.input2.getMoveVector();
     this.player.update(delta, mv.x, mv.y);
+    tickPowerUps(this.state, delta);
 
     this.cycle.tick(delta);
     this.worldEvents.update(delta);
@@ -932,6 +943,13 @@ export class GameScene extends Phaser.Scene {
     }
     this.pickups = this.pickups.filter((p) => p.alive);
 
+    // Power orbs
+    for (const orb of this.powerOrbs) {
+      const res = orb.update(delta, this.player.x, this.player.y);
+      if (res.collect && res.kind) this.activatePowerUp(res.kind);
+    }
+    this.powerOrbs = this.powerOrbs.filter((p) => p.alive);
+
     // Night overlay alpha
     let alpha = 0;
     switch (this.state.phase) {
@@ -1010,6 +1028,24 @@ export class GameScene extends Phaser.Scene {
     this.effects.burst(this.player.x, this.player.y - 12, 0xffd166, 24, 150, 800, 1.4);
     this.popNumber(this.player.x, this.player.y - 28, rewardText, '#ffd166');
     this.showBanner('🎯 QUEST COMPLETE', `${completion.quest.title} · ${rewardText}`);
+    this.spawnPowerOrb(randomPowerUpKind(this.state.nightNumber + completion.quest.goal), this.player.x, this.player.y - 10);
+  }
+
+  private playerDamage(base: number): number {
+    return Math.ceil(base * damageMultiplierForState(this.state));
+  }
+
+  private spawnPowerOrb(kind: PowerUpKind, x: number, y: number): void {
+    this.powerOrbs.push(new PowerOrb(this, x + (Math.random() - 0.5) * 18, y + (Math.random() - 0.5) * 18, kind));
+    this.effects.burst(x, y, 0xffffff, 8, 80, 400, 0.8);
+  }
+
+  private activatePowerUp(kind: PowerUpKind): void {
+    const spec = applyPowerUp(this.state, kind);
+    sounds.pickup();
+    this.effects.burst(this.player.x, this.player.y - 8, spec.color, 26, 150, 700, 1.5);
+    this.popNumber(this.player.x, this.player.y - 26, spec.label, '#ffffff');
+    this.showHint(`${spec.label}!`);
   }
 
   private catchGoldenChicken(chicken: Chicken): void {
@@ -1040,8 +1076,22 @@ export class GameScene extends Phaser.Scene {
     this.nightSpawned += 1;
     const { tx, ty } = this.pickSpawnEdge();
     const wc = this.world.tileToWorldCenter(tx, ty);
-    this.zombies.push(new Zombie(this, this.world, wc.x, wc.y, specForNight(this.state.nightNumber)));
+    this.zombies.push(new Zombie(this, this.world, wc.x, wc.y, this.specForSpawn()));
     this.effects.burst(wc.x, wc.y, 0x884488, 6, 60, 300, 0.8);
+  }
+
+  private specForSpawn(): ZombieSpec {
+    const spec = specForNight(this.state.nightNumber);
+    if (this.nightTwist.runnerChance > 0 && spec.variant === 'normal' && Math.random() < this.nightTwist.runnerChance) {
+      return {
+        ...spec,
+        variant: 'fast',
+        hp: Math.max(1, spec.hp * 0.8),
+        speed: spec.speed * 1.55,
+        tint: 0xa8d65c,
+      };
+    }
+    return spec;
   }
 
   private spawnBoss(): void {
@@ -1098,12 +1148,15 @@ export class GameScene extends Phaser.Scene {
       for (const l of bossLoot) {
         this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 28, y + (Math.random() - 0.5) * 28, l.m, l.c));
       }
+      this.spawnPowerOrb('haste', x - 18, y);
+      this.spawnPowerOrb('fury', x, y - 8);
+      this.spawnPowerOrb('shield', x + 18, y);
       return;
     }
 
     // Drops — generous to reward kills. Combo boost + blood moon boost.
     const comboGoldBonus = Math.min(3, Math.floor(this.combo / 5));
-    const moonMult = this.bloodMoon ? 1.5 : 1;
+    const moonMult = (this.bloodMoon ? 1.5 : 1) * this.nightTwist.lootMultiplier;
     const drops: { m: MaterialId; c: number }[] = [];
     if (Math.random() < 0.75 * moonMult) drops.push({ m: 'gold', c: 1 + comboGoldBonus });
     if (Math.random() < 0.32 * moonMult) drops.push({ m: 'wood', c: 1 });
@@ -1112,6 +1165,10 @@ export class GameScene extends Phaser.Scene {
     for (const d of drops) {
       this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 10, d.m, d.c));
       if (d.m === 'gold') this.state.stats.goldEarned += d.c;
+    }
+    if (this.combo > 0 && this.combo % 5 === 0) {
+      this.spawnPowerOrb(randomPowerUpKind(this.combo + this.state.nightNumber + kills), x, y);
+      this.showHint(`Combo x${this.combo}: power orb!`);
     }
     this.popNumber(x, y - 30, '+' + (drops.length ? drops.map((d) => d.m[0].toUpperCase()).join('') : 'kill'), '#a0ffa0');
   }

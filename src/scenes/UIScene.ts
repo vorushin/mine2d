@@ -13,6 +13,7 @@ import { Modal } from '../ui/ShopModal';
 import { HelpOverlay } from '../ui/HelpOverlay';
 import { Minimap } from '../ui/Minimap';
 import { questProgressLabel, questRewardLabel } from '../systems/DailyQuests';
+import { POWER_UP_SPECS } from '../systems/PowerUps';
 
 export class UIScene extends Phaser.Scene {
   private gameScene!: GameScene;
@@ -43,6 +44,8 @@ export class UIScene extends Phaser.Scene {
   private phaseBar!: Phaser.GameObjects.Graphics;
   private questBg!: Phaser.GameObjects.Rectangle;
   private questLabel!: Phaser.GameObjects.Text;
+  private buffBg!: Phaser.GameObjects.Rectangle;
+  private buffLabel!: Phaser.GameObjects.Text;
   private invPanel!: Phaser.GameObjects.Container;
   private invChips: { bg: Phaser.GameObjects.Rectangle; swatch: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text; key: string }[] = [];
   private joystick?: VirtualJoystick;
@@ -251,6 +254,13 @@ export class UIScene extends Phaser.Scene {
     this.questLabel = this.add.text(0, 0, '', {
       fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: '#ffec99',
       align: 'center',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
+    this.buffBg = this.add.rectangle(0, 0, 300, 22, 0x102020, 0.78)
+      .setStrokeStyle(1, 0x9cff9c, 0.5)
+      .setScrollFactor(0)
+      .setDepth(500);
+    this.buffLabel = this.add.text(0, 0, '', {
+      fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: '#caffca',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
     this.nightLabel = this.add.text(0, 0, '', {
       fontFamily: 'system-ui', fontSize: '14px', color: '#fff', fontStyle: 'bold',
@@ -527,10 +537,14 @@ export class UIScene extends Phaser.Scene {
     this.phaseBar.fillRoundedRect(barX, 32, barW * prog, 8, 4);
     this.phaseLabel.setText(`${this.state.phase.toUpperCase()}`).setPosition(this.scale.width / 2, 20);
     this.renderQuestHud();
+    this.renderBuffHud();
     const kills = this.state.stats?.zombiesKilled ?? 0;
     const extra = this.state.phase === 'night' ? `   •   zombies ${this.gameScene.zombies.filter((z) => z.alive).length}` : '';
     const rex = this.gameScene.dog?.alive ? `   •   🐶 Lv ${this.gameScene.dog.level}` : '';
-    this.nightLabel.setText(`Night ${this.state.nightNumber}   •   Score ${this.state.score}   •   kills ${kills}${rex}${extra}`);
+    const twist = this.gameScene.nightTwist.kind !== 'normal' && this.state.phase === 'night'
+      ? `   •   ${this.gameScene.nightTwist.label}`
+      : '';
+    this.nightLabel.setText(`Night ${this.state.nightNumber}   •   Score ${this.state.score}   •   kills ${kills}${rex}${twist}${extra}`);
   }
 
   private renderQuestHud(): void {
@@ -553,6 +567,27 @@ export class UIScene extends Phaser.Scene {
     this.questLabel.setColor(quest.completed ? '#a0ffa0' : '#ffec99');
     this.questBg.setVisible(true);
     this.questLabel.setVisible(true);
+  }
+
+  private renderBuffHud(): void {
+    const buffs = this.state.activeBuffs;
+    const active: string[] = [];
+    if (buffs.hasteMs > 0) active.push(`${POWER_UP_SPECS.haste.shortLabel} ${Math.ceil(buffs.hasteMs / 1000)}s`);
+    if (buffs.furyMs > 0) active.push(`${POWER_UP_SPECS.fury.shortLabel} ${Math.ceil(buffs.furyMs / 1000)}s`);
+    if (buffs.shieldMs > 0) active.push(`${POWER_UP_SPECS.shield.shortLabel} ${Math.ceil(buffs.shieldMs / 1000)}s`);
+    if (active.length === 0) {
+      this.buffBg.setVisible(false);
+      this.buffLabel.setVisible(false);
+      return;
+    }
+
+    const w = this.scale.width;
+    const boxW = Math.min(360, Math.max(220, active.join('  |  ').length * 8 + 28));
+    const y = this.joystick ? 110 : 82;
+    this.buffBg.setPosition(w / 2, y).setDisplaySize(boxW, 22);
+    this.buffLabel.setText(`Powers: ${active.join('  |  ')}`).setPosition(w / 2, y);
+    this.buffBg.setVisible(true);
+    this.buffLabel.setVisible(true);
   }
 
   private renderHotbar(): void {
