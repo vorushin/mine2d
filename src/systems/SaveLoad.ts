@@ -1,4 +1,4 @@
-import { GameState, RunStats, makeGameState } from '../state/GameState';
+import { DailyQuest, DailyQuestKind, GameState, RunStats, makeGameState } from '../state/GameState';
 import { Tile } from '../world/generate';
 import { TileType, TILE_SPECS, MaterialId } from '../world/tileTypes';
 import { WORLD_HEIGHT, WORLD_WIDTH } from '../config';
@@ -98,6 +98,7 @@ export interface SaveData {
     score: number;
   };
   stats: RunStats;
+  dailyQuest?: DailyQuest | null;
   dog: { alive: boolean; hp: number; level: number; kills: number; x: number; y: number } | null;
 }
 
@@ -193,6 +194,7 @@ function serialize(snap: SaveSnapshot): SaveData {
       score: snap.state.score,
     },
     stats: { ...snap.state.stats },
+    dailyQuest: snap.state.dailyQuest ? { ...snap.state.dailyQuest, reward: snap.state.dailyQuest.reward.map((r) => ({ ...r })) } : null,
     dog: snap.dog,
   };
 }
@@ -217,6 +219,38 @@ const VALID_MATERIALS: readonly MaterialId[] = [
   'wood', 'stone', 'iron', 'gold', 'arrow', 'bullet', 'lava',
   'bomb', 'wallReinforced', 'turretFlame',
 ];
+const VALID_QUEST_KINDS: readonly DailyQuestKind[] = ['mine', 'build', 'kill'];
+
+function materialOrNull(v: unknown): MaterialId | null {
+  return (typeof v === 'string' && (VALID_MATERIALS as readonly string[]).includes(v)) ? (v as MaterialId) : null;
+}
+
+function normalizeDailyQuest(raw: unknown, fallbackDay: number): DailyQuest | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const q = raw as Partial<DailyQuest>;
+  const kind = stringOr(q.kind, VALID_QUEST_KINDS, 'mine');
+  const goal = Math.max(1, intOr(q.goal, 1));
+  const rewardSrc = Array.isArray(q.reward) ? q.reward : [];
+  const reward: DailyQuest['reward'] = [];
+  for (const item of rewardSrc) {
+    if (!item || typeof item !== 'object') continue;
+    const entry = item as { material?: unknown; count?: unknown };
+    const material = materialOrNull(entry.material);
+    const count = Math.max(0, intOr(entry.count, 0));
+    if (material && count > 0) reward.push({ material, count });
+  }
+  return {
+    id: typeof q.id === 'string' && q.id ? q.id : `loaded-day-${fallbackDay}`,
+    day: Math.max(1, intOr(q.day, fallbackDay)),
+    title: typeof q.title === 'string' && q.title ? q.title : 'Daily quest',
+    hint: typeof q.hint === 'string' ? q.hint : '',
+    kind,
+    progress: Math.min(goal, Math.max(0, intOr(q.progress, 0))),
+    goal,
+    reward,
+    completed: boolOr(q.completed, false),
+  };
+}
 
 function deserialize(raw: unknown): SaveSnapshot | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -293,6 +327,7 @@ function deserialize(raw: unknown): SaveSnapshot | null {
     tilesPlaced: Math.max(0, intOr(stats.tilesPlaced, 0)),
     goldEarned: Math.max(0, intOr(stats.goldEarned, 0)),
   };
+  state.dailyQuest = normalizeDailyQuest(data.dailyQuest, state.nightNumber);
   state.running = true;
 
   // Player world position; if absent, use spawn.

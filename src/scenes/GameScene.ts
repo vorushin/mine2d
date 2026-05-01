@@ -16,7 +16,8 @@ import { sounds } from '../systems/Sound';
 import { Effects } from '../gfx/Effects';
 import { WorldEvents } from '../systems/WorldEvents';
 import { useHammer, bombExplosion, BombVictim } from '../systems/Engineering';
-import { GameState, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
+import { DailyQuestKind, GameState, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
+import { ensureDailyQuest, questRewardLabel, recordQuestProgress } from '../systems/DailyQuests';
 import { TileType, TILE_SPECS, MaterialId, isBreakable } from '../world/tileTypes';
 import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
@@ -200,7 +201,7 @@ export class GameScene extends Phaser.Scene {
           if (this.world.isWalkable(tx, ty)) {
             const wc = this.world.tileToWorldCenter(tx, ty);
             this.chickens.push(new Chicken(this, this.world, wc.x, wc.y, true));
-            this.showHint('✨ Golden chicken: catch it for 12 gold!');
+            this.showHint('✨ Golden chicken: touch it for 12 gold!');
             break;
           }
         }
@@ -214,6 +215,7 @@ export class GameScene extends Phaser.Scene {
       if (phase === 'day') {
         this.showHint('Day — mine, build, craft');
         this.worldEvents.onDayStart();
+        this.startDailyQuest(true);
       }
     });
 
@@ -370,6 +372,7 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.launch('UI', { gameScene: this });
     this.showHint('Day 1 — mine, build, press H for help');
+    this.startDailyQuest(false);
     // If a volcano was seeded on the map, warn the player
     if (this.worldEvents.volcanoPos) {
       this.time.delayedCall(2500, () => this.showBanner('🌋 VOLCANO NEARBY', 'watch where you build — lava will spread'));
@@ -530,6 +533,7 @@ export class GameScene extends Phaser.Scene {
         if (res.broken) {
           sounds.mineBreak();
           this.state.stats.tilesMined += 1;
+          this.recordDailyQuestProgress('mine');
           if (res.drop && res.drop.count > 0) {
             this.pickups.push(new Pickup(this, wc.x, wc.y, res.drop.material, res.drop.count));
           }
@@ -576,16 +580,8 @@ export class GameScene extends Phaser.Scene {
         if (d < 20 && this.player.tileDistance(this.world.worldToTile(c.x, c.y).x, this.world.worldToTile(c.x, c.y).y) <= 1.5) {
           hitSomething = true;
           this.effects.burst(c.x, c.y, c.golden ? 0xffd700 : 0xffffff, 6, 60, 300, 0.6);
-          if (c.takeDamage(dmg)) {
-            if (c.golden) {
-              this.pickups.push(new Pickup(this, c.x, c.y, 'gold', 12));
-              this.effects.burst(c.x, c.y, 0xffd700, 24, 160, 800, 1.6);
-              this.showBanner('✨ GOLDEN CHICKEN', '+12 gold');
-              sounds.cake();
-            } else {
-              sounds.zombieHit();
-            }
-          }
+          if (c.golden) this.catchGoldenChicken(c);
+          else c.scareFrom(this.player.x, this.player.y);
         }
       }
       const t = this.world.getTileAt(tp.x, tp.y);
@@ -683,6 +679,7 @@ export class GameScene extends Phaser.Scene {
       this.world.placeTile(tp.x, tp.y, act.tile);
       sounds.place();
       this.state.stats.tilesPlaced += 1;
+      this.recordDailyQuestProgress('build');
       if (act.tile === TileType.TurretBasic || act.tile === TileType.TurretFlame) {
         const kind =
           act.tile === TileType.TurretFlame ? 'flame' :
@@ -863,8 +860,13 @@ export class GameScene extends Phaser.Scene {
       this.dog.update(delta, this.player, this.zombies);
     }
 
-    // Chickens wander around
-    for (const c of this.chickens) c.update(delta, this.player.x, this.player.y);
+    // Chickens wander around. Golden chickens are caught by contact, not combat.
+    for (const c of this.chickens) {
+      c.update(delta, this.player.x, this.player.y);
+      if (c.golden && c.alive && Math.hypot(c.x - this.player.x, c.y - this.player.y) < 18) {
+        this.catchGoldenChicken(c);
+      }
+    }
     this.chickens = this.chickens.filter((c) => c.alive);
 
     // Turrets
@@ -989,6 +991,40 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private startDailyQuest(withBanner: boolean): void {
+    const alreadyHadQuestForDay = this.state.dailyQuest?.day === this.state.nightNumber;
+    const quest = ensureDailyQuest(this.state);
+    if (alreadyHadQuestForDay) return;
+
+    const subtitle = `${quest.title}  ->  ${questRewardLabel(quest)}`;
+    if (withBanner) this.showBanner('🎯 DAILY QUEST', subtitle);
+    else this.time.delayedCall(900, () => this.showHint(`🎯 Quest: ${quest.title}`));
+  }
+
+  private recordDailyQuestProgress(kind: DailyQuestKind, amount = 1): void {
+    const completion = recordQuestProgress(this.state, kind, amount);
+    if (!completion) return;
+
+    const rewardText = completion.rewards.map((r) => `+${r.count} ${r.material}`).join('  ');
+    sounds.pickup();
+    this.effects.burst(this.player.x, this.player.y - 12, 0xffd166, 24, 150, 800, 1.4);
+    this.popNumber(this.player.x, this.player.y - 28, rewardText, '#ffd166');
+    this.showBanner('🎯 QUEST COMPLETE', `${completion.quest.title} · ${rewardText}`);
+  }
+
+  private catchGoldenChicken(chicken: Chicken): void {
+    if (!chicken.alive || !chicken.golden) return;
+    const x = chicken.x;
+    const y = chicken.y;
+    chicken.capture();
+    addItem(this.state.inventory, 'gold', 12);
+    this.state.stats.goldEarned += 12;
+    this.effects.burst(x, y, 0xffd700, 28, 170, 850, 1.7);
+    this.popNumber(x, y - 18, '+12 gold', '#ffd166');
+    this.showBanner('✨ GOLDEN CHICKEN', '+12 gold');
+    sounds.cake();
+  }
+
   private pickSpawnEdge(): { tx: number; ty: number } {
     const edge = Math.floor(Math.random() * 4);
     let tx = 1;
@@ -1034,6 +1070,7 @@ export class GameScene extends Phaser.Scene {
     this.effects.bloodExplode(x, y);
     this.cameras.main.shake(60, 0.002);
     this.state.stats.zombiesKilled += 1;
+    this.recordDailyQuestProgress('kill');
 
     // Combo: consecutive kills within 2 seconds of each other
     this.combo += 1;

@@ -51,6 +51,17 @@ describe('SaveLoad', () => {
     addItem(state.inventory, 'wood', 17);
     addItem(state.inventory, 'gold', 9);
     state.stats = { zombiesKilled: 42, tilesMined: 10, tilesPlaced: 8, goldEarned: 12 };
+    state.dailyQuest = {
+      id: 'day-4-prospector',
+      day: 4,
+      title: 'Mine 12 resources',
+      hint: 'Trees, stone, ore, crates, and event rocks all count.',
+      kind: 'mine',
+      progress: 5,
+      goal: 12,
+      reward: [{ material: 'gold', count: 2 }],
+      completed: false,
+    };
 
     const tiles = makeTiles();
     tiles[5][5].type = TileType.Volcano;
@@ -80,6 +91,9 @@ describe('SaveLoad', () => {
     expect(loaded!.state.inventory.counts.wood).toBe(17);
     expect(loaded!.state.inventory.counts.gold).toBe(9);
     expect(loaded!.state.stats.zombiesKilled).toBe(42);
+    expect(loaded!.state.dailyQuest?.id).toBe('day-4-prospector');
+    expect(loaded!.state.dailyQuest?.progress).toBe(5);
+    expect(loaded!.state.dailyQuest?.reward[0]).toEqual({ material: 'gold', count: 2 });
     expect(loaded!.tiles[5][5].type).toBe(TileType.Volcano);
     expect(loaded!.tiles[5][5].hp).toBe(250);
     expect(loaded!.tiles[10][10].type).toBe(TileType.Bridge);
@@ -118,6 +132,7 @@ describe('SaveLoad', () => {
     expect(loaded!.state.phase).toBe('day');
     expect(loaded!.state.inventory.counts.wood).toBe(5);
     expect(loaded!.state.stats.zombiesKilled).toBe(0);
+    expect(loaded!.state.dailyQuest).toBeNull();
     expect(loaded!.dog).toBeNull();
     // Tile grid is all grass (defaults)
     expect(loaded!.tiles[0][0].type).toBe(TileType.Grass);

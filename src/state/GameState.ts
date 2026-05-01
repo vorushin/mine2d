@@ -35,6 +35,20 @@ export interface RunStats {
   goldEarned: number;
 }
 
+export type DailyQuestKind = 'mine' | 'build' | 'kill';
+
+export interface DailyQuest {
+  id: string;
+  day: number;
+  title: string;
+  hint: string;
+  kind: DailyQuestKind;
+  progress: number;
+  goal: number;
+  reward: { material: MaterialId; count: number }[];
+  completed: boolean;
+}
+
 export interface GameState {
   nightNumber: number;
   score: number;
@@ -51,6 +65,7 @@ export interface GameState {
   hotbarSlot: number;
   running: boolean;
   stats: RunStats;
+  dailyQuest: DailyQuest | null;
 }
 
 export function makeGameState(): GameState {
@@ -70,5 +85,6 @@ export function makeGameState(): GameState {
     hotbarSlot: 0,
     running: true,
     stats: { zombiesKilled: 0, tilesMined: 0, tilesPlaced: 0, goldEarned: 0 },
+    dailyQuest: null,
   };
 }

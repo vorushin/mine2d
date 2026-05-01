@@ -4,7 +4,7 @@ import { TEX } from '../gfx/textures';
 
 /**
  * Friendly wandering chicken. Roams randomly and flees briefly if approached.
- * Cosmetic; the rare golden variant drops a pile of gold when killed.
+ * Cosmetic; the rare golden variant gives gold when the player catches it.
  */
 export class Chicken {
   readonly sprite: Phaser.GameObjects.Image;
@@ -98,6 +98,26 @@ export class Chicken {
       return true;
     }
     return false;
+  }
+
+  scareFrom(wx: number, wy: number): void {
+    const dx = this.sprite.x - wx;
+    const dy = this.sprite.y - wy;
+    const mag = Math.max(0.01, Math.hypot(dx, dy));
+    this.fleeMs = 1500;
+    this.vx = (dx / mag) * 1.8;
+    this.vy = (dy / mag) * 1.8;
+    this.scene.tweens.add({ targets: this.sprite, scale: this.sprite.scale * 1.1, yoyo: true, duration: 90 });
+  }
+
+  capture(): void {
+    if (!this.alive) return;
+    this.alive = false;
+    this.shadow.destroy();
+    this.scene.tweens.add({
+      targets: this.sprite, alpha: 0, y: this.sprite.y - 18, scaleX: 0.25, scaleY: 0.25, duration: 220,
+      onComplete: () => this.sprite.destroy(),
+    });
   }
 
   die(): void {
