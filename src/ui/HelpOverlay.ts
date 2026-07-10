@@ -5,42 +5,59 @@ export interface HelpDeps {
   onClose: () => void;
 }
 
-type Tab = 'controls' | 'items' | 'events';
+type Tab = 'controls' | 'items' | 'events' | 'deep';
 
 const CONTROLS: [string, string][] = [
   ['WASD / joystick', 'Move'],
   ['Click / tap tile', 'Use selected hotbar item (hold to drag-build)'],
-  ['1 – 6', 'Select active tool'],
+  ['1 – 9', 'Select active tool'],
   ['B', 'Open build picker'],
   ['Mouse wheel', 'Cycle hotbar'],
-  ['E', 'Interact (shop, door)'],
+  ['E', 'Interact (shop, door, ladders, throne gate)'],
   ['C', 'Open crafting anywhere'],
   ['Shift', 'Dash — 2× speed burst'],
   ['R', 'Hero Blast when charged'],
-  ['Click Rex', 'Pet the dog (+3 HP, hearts)'],
+  ['M', 'Sound on/off'],
+  ['Click Rex/buddy', 'Pet your companions (+3 HP, hearts)'],
+  ['Click a chicken', 'Recruit it into your chicken army (max 3)'],
   ['N', 'Skip to night (day only)'],
   ['H or ?', 'Toggle this help'],
 ];
 
 const EVENTS: [string, string][] = [
   ['🎯 Daily Quest', 'Follow the HUD goal for bonus resources'],
-  ['⚡ Power Orbs', 'Combo kills, quests, and bosses can drop temporary powers'],
-  ['FAST / HIT / SAFE', 'Move faster, hit harder, or take less damage'],
-  ['🌙 Night Twists', 'Some nights become swarms, treasure runs, or runner attacks'],
-  ['👺 Goblins', 'Fast raiders on Goblin Raid nights — fragile but loot-rich'],
-  ['⚡ Hero Blast', 'Charge with kills and quests, then blast nearby enemies'],
-  ['🐶 Rex', 'Your companion — helps fight and revives at dawn'],
-  ['🐔 Chickens', 'Harmless wildlife. Touch golden chickens to catch them'],
-  ['🌉 Bridge', 'Place on water to walk across the lake'],
-  ['🔥 Torch', 'Damages zombies at night in a small radius'],
+  ['⚰ Graveyards', 'Each crypt adds +25% zombies at night — raid it by day!'],
+  ['🏆 Bosses', 'Every 5th night: Necromancer, Spider Queen, or Stone Golem'],
+  ['☠ Boss Souls', 'Bosses drop souls — 2 souls + 3 crystal = Crystal Key'],
+  ['⚡ Power Orbs', 'Combo kills, quests, and bosses drop temporary powers'],
+  ['🌙 Night Twists', 'Swarms, treasure, runners, fog, meteors, or frost'],
+  ['👺 Goblins', 'Loot-rich raiders — some drop treasure maps (✕ marks it!)'],
+  ['🐶 Companions', 'Rex bites; Whiskers digs treasure; Ember spits fire; Bolt repairs'],
+  ['🐔 Chicken Army', 'Recruited chickens peck zombies. Golden ones pay 12 gold'],
+  ['🎣 Fishing', 'Craft a rod, cast at the lake, tap the “!” to reel in'],
+  ['❄⚡ Wands', 'Freeze Wand slows crowds; Storm Wand chains lightning'],
+  ['🔥 Torch', 'Lights the dark and burns zombies in a small radius'],
   ['🏕 Campfire', 'Heal faster when you stand next to it'],
   ['🎂 Cake', 'Mine for a full heal (hidden)'],
-  ['☄ Meteor', 'From day 2 — red circle = danger! Iron + stone'],
+  ['☄ Meteor', 'Red circle = danger! Drops iron + stone'],
   ['🌋 Volcano', 'Grows lava each day. Break with iron pickaxe'],
   ['🩸 Blood Moon', 'Every 5th night — +50% loot'],
-  ['⚡ Lightning', 'During rain — blasts zombies near the bolt'],
-  ['✨ Golden Chicken', 'Rare shiny chicken — touch for 12 gold'],
-  ['🏆 Boss', 'Every 5 nights — drops massive loot + fireworks'],
+  ['⭐ Star Coins', 'Every run banks coins — spend them in the Hero\'s Hut'],
+];
+
+const DEEP_DARK: [string, string][] = [
+  ['🕳 Cave Entrance', 'Stand on the dark hole and press E to descend'],
+  ['🪜 Ladders', 'Climb deeper (3 floors) or back toward the sky'],
+  ['🌑 Darkness', 'Caves are pitch black — carry torches, place them well'],
+  ['💎 Crystal', 'Floor 2+. Needs an iron pickaxe. Crafts tier-3 tools + wands'],
+  ['🖤 Obsidian', 'Floor 3. Needs a crystal pickaxe. Strongest wall'],
+  ['🦇 Bats', 'Fast, weave through the air, never attack walls'],
+  ['🕷 Spiders', 'Lay sticky webs that slow you down'],
+  ['💀 Skeleton Miners', 'Throw bones from range — break their line of sight'],
+  ['📦 Treasure Vaults', 'Torch-lit rooms sealed in rock. Mine in, get rich'],
+  ['👑 The Throne Room', 'Floor 3, sealed. Open it with the Crystal Key…'],
+  ['🔥 The Zombie King', 'Three phases. He smashes walls when enraged. Win = credits!'],
+  ['🌞 While below', 'Surface sieges pause — the horde is down there with you'],
 ];
 
 export class HelpOverlay {
@@ -91,9 +108,9 @@ export class HelpOverlay {
   }
 
   private buildTabs(): void {
-    const tabs: Tab[] = ['controls', 'items', 'events'];
-    const labels: Record<Tab, string> = { controls: 'Controls', items: 'Items', events: 'World' };
-    const tabW = 120;
+    const tabs: Tab[] = ['controls', 'items', 'events', 'deep'];
+    const labels: Record<Tab, string> = { controls: 'Controls', items: 'Items', events: 'World', deep: 'Deep Dark' };
+    const tabW = 118;
     const gap = 8;
     const total = tabs.length * tabW + (tabs.length - 1) * gap;
     const startX = this.panelX + this.panelW / 2 - total / 2 + tabW / 2;
@@ -127,7 +144,11 @@ export class HelpOverlay {
     this.contentLayer.removeAll(true);
     const startY = this.panelY + 96;
     const rowX = this.panelX + 20;
-    const data = this.tab === 'controls' ? CONTROLS : this.tab === 'events' ? EVENTS : null;
+    const data =
+      this.tab === 'controls' ? CONTROLS :
+      this.tab === 'events' ? EVENTS :
+      this.tab === 'deep' ? DEEP_DARK :
+      null;
 
     if (data) {
       let y = startY;
@@ -145,16 +166,17 @@ export class HelpOverlay {
       return;
     }
 
-    // Items tab: two columns of HOTBAR items
+    // Items tab: two tight columns of HOTBAR items
     const cols = 2;
     const colW = (this.panelW - 40) / cols;
-    const startY2 = this.panelY + 96;
+    const startY2 = this.panelY + 92;
+    const rowH = Math.max(34, Math.floor((this.panelH - 110) / Math.ceil(HOTBAR.length / cols)));
     for (let i = 0; i < HOTBAR.length; i++) {
       const item = HOTBAR[i];
       const col = i % cols;
       const row = Math.floor(i / cols);
       const cx = rowX + col * colW;
-      const cy = startY2 + row * 52;
+      const cy = startY2 + row * rowH;
       const swatch = this.scene.add.rectangle(cx + 8, cy + 8, 14, 14, item.color).setStrokeStyle(1, 0x000, 0.5).setOrigin(0.5);
       const name = this.scene.add.text(cx + 22, cy, item.name, {
         fontFamily: 'system-ui', fontSize: '12px', color: '#fff', fontStyle: 'bold',
