@@ -263,6 +263,41 @@ export function generateWorld(seed: number): GeneratedWorld {
     }
   }
 
+  // Graveyards — crypt core ringed by gravestones on a dirt patch, far from
+  // spawn. Each intact crypt makes nights harder until raided.
+  const graveyardTarget = 2 + (rand() < 0.5 ? 1 : 0);
+  let graveyards = 0;
+  const protectedTypes = new Set([
+    TileType.Water, TileType.ShopNPC, TileType.Volcano, TileType.Cake,
+    TileType.CaveEntrance, TileType.SupplyCrate, TileType.Campfire,
+  ]);
+  for (let tries = 0; tries < 500 && graveyards < graveyardTarget; tries++) {
+    const gx = 6 + Math.floor(rand() * (w - 12));
+    const gy = 6 + Math.floor(rand() * (h - 12));
+    if (Math.hypot(gx - spawn.x, gy - spawn.y) < 25) continue;
+    let blocked = false;
+    for (let dy = -2; dy <= 2 && !blocked; dy++) {
+      for (let dx = -2; dx <= 2 && !blocked; dx++) {
+        if (!inBounds(gx + dx, gy + dy)) blocked = true;
+        else if (protectedTypes.has(tiles[gy + dy][gx + dx].type)) blocked = true;
+      }
+    }
+    if (blocked) continue;
+    // Dirt patch
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        tiles[gy + dy][gx + dx] = makeTile(TileType.Dirt);
+      }
+    }
+    // Gravestone ring with a southern gap for the entrance
+    const ring: [number, number][] = [[-2, -2], [0, -2], [2, -2], [-2, 0], [2, 0], [-2, 2], [2, 2], [-1, -2], [1, -2]];
+    for (const [dx, dy] of ring) {
+      if (rand() < 0.85) tiles[gy + dy][gx + dx] = makeTile(TileType.Gravestone);
+    }
+    tiles[gy][gx] = makeTile(TileType.Crypt);
+    graveyards++;
+  }
+
   // Place a starter supply crate near spawn (not on top of spawn)
   for (let tries = 0; tries < 40; tries++) {
     const angle = rand() * Math.PI * 2;

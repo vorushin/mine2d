@@ -12,6 +12,8 @@ import {
   kingSpec, pickFallenToRaise, specForBossKind,
 } from '../systems/Bosses';
 import { specForSpiderling } from '../entities/Zombie';
+import { GUARDIANS_PER_CRYPT, findCrypts, graveyardNightBonus } from '../systems/Graveyards';
+import { cryptLoot } from '../systems/LootTables';
 import { Projectile, ProjectileSpawn } from '../entities/Projectile';
 import { TurretInstance, makeTurretBarrel, tickTurrets } from '../entities/Turret';
 import { Pickup } from '../entities/Pickup';
@@ -175,23 +177,30 @@ export class GameScene extends Phaser.Scene {
       this.nightTwist = chooseNightTwist(this.state.nightNumber);
       // Endless+ (after beating the King): bigger sieges
       const adjustedBase = this.state.endlessPlus ? Math.ceil(baseTarget * 1.5) : baseTarget;
-      const target = this.director.beginNight(adjustedBase, this.nightTwist);
+      // Intact graveyards feed the horde
+      const intactCrypts = findCrypts(this.surfaceTiles).length;
+      const graveBonus = graveyardNightBonus(intactCrypts, adjustedBase);
+      const target = this.director.beginNight(adjustedBase, this.nightTwist, graveBonus);
       this.fallenThisNight = [];
       sounds.nightStart();
       const isBossNight = this.state.nightNumber % 5 === 0;
       this.bloodMoon = isBossNight;
       music.setTheme(isBossNight ? 'boss' : 'night');
+      const graveNote = graveBonus > 0 ? `  ·  +${graveBonus} from graveyards ⚰` : '';
       const sub = isBossNight
-        ? `🩸 BLOOD MOON  ·  ${target} zombies + BOSS`
+        ? `🩸 BLOOD MOON  ·  ${target} zombies + BOSS${graveNote}`
         : this.nightTwist.kind !== 'normal'
-          ? `${this.nightTwist.label}  ·  ${target} zombies  ·  ${this.nightTwist.subtitle}`
-          : `${target} zombies incoming`;
+          ? `${this.nightTwist.label}  ·  ${target} zombies  ·  ${this.nightTwist.subtitle}${graveNote}`
+          : `${target} zombies incoming${graveNote}`;
       this.showBanner(`NIGHT ${this.state.nightNumber}`, sub);
       if (isBossNight) this.cameras.main.shake(400, 0.006);
     });
     this.cycle.events.on('dawn', () => {
-      for (const z of this.zombies) z.die();
-      this.zombies = [];
+      // Graveyard guardians survive the dawn; the siege does not
+      for (const z of this.zombies) {
+        if (!z.persistent) z.die();
+      }
+      this.zombies = this.zombies.filter((z) => z.alive);
       this.bloodMoon = false;
       this.nightTwist = NIGHT_TWISTS.normal;
       sounds.dawn();
@@ -263,6 +272,7 @@ export class GameScene extends Phaser.Scene {
         if (this.state.depth === 0) this.worldEvents.onDayStart();
         this.startDailyQuest(true);
         music.setTheme(this.state.depth > 0 ? 'caves' : 'day');
+        this.spawnGraveyardGuardians();
       }
     });
     music.setTheme('day');
@@ -270,6 +280,32 @@ export class GameScene extends Phaser.Scene {
     // Spider webs decay after a few seconds
     this.world.events.on('tile_placed', (x: number, y: number, type: TileType) => {
       if (type === TileType.Web) this.webTiles.push({ x, y, ttlMs: 6000 });
+    });
+
+    // Smashing a crypt cleanses its graveyard — nights get easier
+    this.world.events.on('tile_broken', (x: number, y: number, type: TileType) => {
+      if (type !== TileType.Crypt) return;
+      const wc = this.world.tileToWorldCenter(x, y);
+      this.state.runMeta.graveyardsCleared += 1;
+      this.effects.burst(wc.x, wc.y, 0x9fff6a, 30, 200, 900, 1.8);
+      this.effects.burst(wc.x, wc.y, 0xffd700, 20, 160, 800, 1.4);
+      sounds.cake();
+      this.cameras.main.shake(220, 0.006);
+      for (const l of cryptLoot()) {
+        this.pickups.push(new Pickup(this, wc.x + (Math.random() - 0.5) * 20, wc.y + (Math.random() - 0.5) * 20, l.m, l.c));
+      }
+      this.gainHeroCharge(25);
+      const remaining = findCrypts(this.surfaceTiles).length;
+      this.showBanner('⚰ GRAVEYARD CLEANSED', remaining > 0 ? `nights get easier · ${remaining} graveyard${remaining === 1 ? '' : 's'} left` : 'the land is at peace — nights get easier');
+      // Its guardians lose their post (and despawn at the next dawn)
+      const key = `${x},${y}`;
+      for (const z of this.zombies) {
+        if (z.anchorKey === key) {
+          z.anchor = undefined;
+          z.anchorKey = undefined;
+          z.persistent = false;
+        }
+      }
     });
 
     // Skeleton miners (and other ranged enemies) throw bones
@@ -437,6 +473,7 @@ export class GameScene extends Phaser.Scene {
 
     this.refreshPlayerWeapon();
     this.rebuildTurrets();
+    this.spawnGraveyardGuardians();
 
     // Loading a save made underground: swap straight to that cave layer
     if (loaded && loaded.depth > 0 && this.caves[loaded.depth - 1]) {
@@ -635,6 +672,32 @@ export class GameScene extends Phaser.Scene {
         goingDown ? `⛏ THE DEEP DARK — FLOOR ${depth}` : `⬆ FLOOR ${depth}`,
         depth === 3 ? 'the Zombie King stirs below…' : goingDown ? 'stay near the light' : 'the way up is close',
       );
+    }
+  }
+
+  /** Keep each intact graveyard staffed with a couple of watchful guardians. */
+  private spawnGraveyardGuardians(): void {
+    if (this.state.depth !== 0) return;
+    for (const c of findCrypts(this.surfaceTiles)) {
+      const key = `${c.x},${c.y}`;
+      const posted = this.zombies.filter((z) => z.alive && z.anchorKey === key).length;
+      for (let i = posted; i < GUARDIANS_PER_CRYPT; i++) {
+        for (let tries = 0; tries < 20; tries++) {
+          const tx = c.x + Math.floor((Math.random() - 0.5) * 6);
+          const ty = c.y + Math.floor((Math.random() - 0.5) * 6);
+          if (!this.world.isWalkable(tx, ty)) continue;
+          const wc = this.world.tileToWorldCenter(tx, ty);
+          const spec = specForNight(this.state.nightNumber);
+          spec.hp *= 1.4;
+          const guard = new Zombie(this, this.world, wc.x, wc.y, spec);
+          guard.persistent = true;
+          guard.anchorKey = key;
+          const anchorWc = this.world.tileToWorldCenter(c.x, c.y);
+          guard.anchor = { x: anchorWc.x, y: anchorWc.y, radiusPx: TILE_SIZE * 9 };
+          this.zombies.push(guard);
+          break;
+        }
+      }
     }
   }
 

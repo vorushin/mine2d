@@ -1027,6 +1027,11 @@ export class Zombie {
   speedBoost = 1;
   /** Wall-damage multiplier (the King smashes through defenses when enraged). */
   wallDamageMult = 1;
+  /** Survives dawn (graveyard guardians). */
+  persistent = false;
+  /** Guardian home: idles until the player comes within radius of it. */
+  anchor?: { x: number; y: number; radiusPx: number };
+  anchorKey?: string;
   private rangedRangePx?: number;
   private rangedFireMs?: number;
   private rangedTimerMs = 800;
@@ -1138,6 +1143,17 @@ export class Zombie {
     if (this.slowMs > 0) {
       this.slowMs -= deltaMs;
       if (this.slowMs <= 0) this.slowFactor = 1;
+    }
+
+    // Graveyard guardians stand watch until the player intrudes
+    if (this.anchor) {
+      const intruderDist = Math.hypot(player.x - this.anchor.x, player.y - this.anchor.y);
+      if (intruderDist > this.anchor.radiusPx) {
+        this.walkPhase += deltaMs / 300;
+        this.sprite.setRotation(Math.sin(this.walkPhase) * 0.04);
+        this.shadow.setPosition(this.sprite.x, this.sprite.y + this.shadowOffY);
+        return;
+      }
     }
 
     // Lava damage to zombies (the zombie's tile type)

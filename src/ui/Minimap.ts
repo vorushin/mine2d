@@ -34,11 +34,14 @@ export class Minimap {
     this.layout();
   }
 
+  private cryptCells: { x: number; y: number }[] = [];
+
   private paintStatic(): void {
     const world = this.gameScene.world;
     const cell = this.mapSize / world.w;
     const inCave = world.env === 'cave';
     this.staticLayer.clear();
+    this.cryptCells = [];
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
         const t = world.tiles[y][x];
@@ -69,7 +72,7 @@ export class Minimap {
         else if (t.type === TileType.ThroneGate) c = 0x8a3aaa;
         else if (t.type === TileType.WallObsidian) c = 0x3a3050;
         else if (t.type === TileType.Gravestone) c = 0x9a9aa8;
-        else if (t.type === TileType.Crypt) c = 0xd8d0c0;
+        else if (t.type === TileType.Crypt) { c = 0xd8d0c0; this.cryptCells.push({ x, y }); }
         this.staticLayer.fillStyle(c, 1);
         this.staticLayer.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
       }
@@ -96,6 +99,15 @@ export class Minimap {
     if (shop && world.env === 'surface') {
       this.dynamicLayer.fillStyle(0xffd700, 1);
       this.dynamicLayer.fillRect(shop.x * cell - 2, shop.y * cell - 2, 4, 4);
+    }
+
+    // Intact graveyard crypts — skull-ish markers
+    for (const cc of this.cryptCells) {
+      this.dynamicLayer.fillStyle(0xf0e8d8, 1);
+      this.dynamicLayer.fillRect(cc.x * cell - 2, cc.y * cell - 2, 5, 4);
+      this.dynamicLayer.fillStyle(0x1a1a22, 1);
+      this.dynamicLayer.fillRect(cc.x * cell - 1, cc.y * cell - 1, 1, 1);
+      this.dynamicLayer.fillRect(cc.x * cell + 1, cc.y * cell - 1, 1, 1);
     }
 
     // Player

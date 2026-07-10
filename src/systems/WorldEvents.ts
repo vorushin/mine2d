@@ -170,6 +170,8 @@ export class WorldEvents {
         const tile = this.deps.world.getTileAt(nx, ny);
         if (!tile) continue;
         if (tile.type === TileType.ShopNPC) continue;
+        // Crypts must be earned by raiding, not luck-of-the-meteor
+        if (tile.type === TileType.Crypt) continue;
         // Leave the impact tile as crater ground
         if (dx === 0 && dy === 0) {
           tile.type = TileType.Crater;
