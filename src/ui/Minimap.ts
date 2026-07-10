@@ -117,9 +117,10 @@ export class Minimap {
     this.dynamicLayer.lineStyle(1, 0x000000, 1);
     this.dynamicLayer.strokeRect(p.x * cell - 1, p.y * cell - 1, 3, 3);
 
-    // Dog
-    if (this.gameScene.dog?.alive) {
-      const dp = this.gameScene.world.worldToTile(this.gameScene.dog.x, this.gameScene.dog.y);
+    // Companions
+    for (const pet of [this.gameScene.dog, this.gameScene.buddy]) {
+      if (!pet?.alive) continue;
+      const dp = this.gameScene.world.worldToTile(pet.x, pet.y);
       this.dynamicLayer.fillStyle(0xc89560, 1);
       this.dynamicLayer.fillRect(dp.x * cell - 1, dp.y * cell - 1, 2, 2);
     }

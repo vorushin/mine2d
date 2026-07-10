@@ -154,7 +154,8 @@ export class World {
       type !== TileType.Sand &&
       type !== TileType.FlowerField &&
       type !== TileType.Crater &&
-      type !== TileType.CaveFloor
+      type !== TileType.CaveFloor &&
+      type !== TileType.Ice
     );
   }
 
@@ -170,6 +171,7 @@ export class World {
     if (type === TileType.FlowerField) return TEX.flower_field;
     if (type === TileType.Crater) return TEX.crater;
     if (type === TileType.Lava) return TEX.lava;
+    if (type === TileType.Ice) return TEX.ice;
     if (this.env === 'cave') return h % 3 === 0 ? TEX.cave_floor_2 : TEX.cave_floor;
     if (h % 5 === 0) return TEX.grass_tuft_3;
     if (h % 3 === 0) return TEX.grass_tuft_2;

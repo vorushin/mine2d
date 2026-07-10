@@ -1,5 +1,6 @@
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../config';
 import { TileType, TILE_SPECS } from './tileTypes';
+import type { ModifierId } from '../systems/MetaStore';
 
 export interface Tile {
   type: TileType;
@@ -61,12 +62,18 @@ function noise2d(seed: number) {
   };
 }
 
-export function generateWorld(seed: number): GeneratedWorld {
+export function generateWorld(seed: number, modifier: ModifierId | null = null): GeneratedWorld {
   const rand = mulberry32(seed);
   const biomeNoise = noise2d(seed + 1);
   const detailNoise = noise2d(seed + 2);
   const w = WORLD_WIDTH;
   const h = WORLD_HEIGHT;
+  // World modifiers (Hero's Hut unlocks) tweak the recipe
+  const waterThreshold = modifier === 'island' ? 0.34 : 0.22;
+  const sandThreshold = modifier === 'island' ? 0.40 : 0.28;
+  const waterTile = modifier === 'winter' ? TileType.Ice : TileType.Water;
+  const volcanoCount = modifier === 'lava' ? 3 : 1;
+  const goldCount = modifier === 'lava' ? 16 : 8;
 
   // Initialize all grass
   const tiles: Tile[][] = [];
@@ -83,10 +90,10 @@ export function generateWorld(seed: number): GeneratedWorld {
       if (x < 2 || y < 2 || x >= w - 2 || y >= h - 2) continue;
       const nb = biomeNoise(x / 14, y / 14);
       const nd = detailNoise(x / 5, y / 5);
-      // Carve a lake in one region
-      if (nb < 0.22) {
-        tiles[y][x] = makeTile(TileType.Water);
-      } else if (nb < 0.28) {
+      // Carve a lake in one region (frozen solid in Winter World)
+      if (nb < waterThreshold) {
+        tiles[y][x] = makeTile(waterTile);
+      } else if (nb < sandThreshold) {
         tiles[y][x] = makeTile(TileType.Sand);
       } else if (nb > 0.8) {
         // Rocky mountain region — stone clusters
@@ -147,7 +154,7 @@ export function generateWorld(seed: number): GeneratedWorld {
       }
     }
   }
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < goldCount; i++) {
     const cx = 4 + Math.floor(rand() * (w - 8));
     const cy = 4 + Math.floor(rand() * (h - 8));
     const t = tiles[cy][cx];
@@ -212,28 +219,31 @@ export function generateWorld(seed: number): GeneratedWorld {
     }
   }
 
-  // Place a volcano 10-16 tiles from spawn — visible and threatening from day 1
-  for (let tries = 0; tries < 80; tries++) {
-    const angle = rand() * Math.PI * 2;
-    const dist = 10 + rand() * 6;
-    const cx = Math.floor(spawn.x + Math.cos(angle) * dist);
-    const cy = Math.floor(spawn.y + Math.sin(angle) * dist);
-    if (!inBounds(cx, cy)) continue;
-    const t = tiles[cy][cx];
-    if (t.type === TileType.Grass || t.type === TileType.Dirt || t.type === TileType.Sand) {
-      tiles[cy][cx] = makeTile(TileType.Volcano);
-      // Clear immediate neighbors to dirt so it stands out
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0) continue;
-          const nx = cx + dx;
-          const ny = cy + dy;
-          if (!inBounds(nx, ny)) continue;
-          const n = tiles[ny][nx];
-          if (n.type === TileType.Tree || n.type === TileType.DeadTree) tiles[ny][nx] = makeTile(TileType.Dirt);
+  // Place volcano(es) — the first 10-16 tiles from spawn, visible and
+  // threatening from day 1; Lava World adds more, further out
+  for (let v = 0; v < volcanoCount; v++) {
+    for (let tries = 0; tries < 80; tries++) {
+      const angle = rand() * Math.PI * 2;
+      const dist = v === 0 ? 10 + rand() * 6 : 20 + rand() * 22;
+      const cx = Math.floor(spawn.x + Math.cos(angle) * dist);
+      const cy = Math.floor(spawn.y + Math.sin(angle) * dist);
+      if (!inBounds(cx, cy)) continue;
+      const t = tiles[cy][cx];
+      if (t.type === TileType.Grass || t.type === TileType.Dirt || t.type === TileType.Sand) {
+        tiles[cy][cx] = makeTile(TileType.Volcano);
+        // Clear immediate neighbors to dirt so it stands out
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (!inBounds(nx, ny)) continue;
+            const n = tiles[ny][nx];
+            if (n.type === TileType.Tree || n.type === TileType.DeadTree) tiles[ny][nx] = makeTile(TileType.Dirt);
+          }
         }
+        break;
       }
-      break;
     }
   }
 

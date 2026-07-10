@@ -1,4 +1,5 @@
 import { DailyQuest, DailyQuestKind, GameState, RunStats, makeGameState } from '../state/GameState';
+import { ClassId, CompanionId, ModifierId } from './MetaStore';
 import { Tile } from '../world/generate';
 import { GeneratedCave } from '../world/generateCave';
 import { TileType, TILE_SPECS, MaterialId } from '../world/tileTypes';
@@ -65,6 +66,7 @@ const TILE_NAMES: Record<TileType, string> = {
   [TileType.Gravestone]: 'gravestone',
   [TileType.Crypt]: 'crypt',
   [TileType.Web]: 'web',
+  [TileType.Ice]: 'ice',
 };
 
 const NAME_TO_TILE: Record<string, TileType> = Object.fromEntries(
@@ -111,6 +113,9 @@ export interface SaveData {
     activeBuffs?: { hasteMs?: number; furyMs?: number; shieldMs?: number };
     heroCharge?: number;
     runMeta?: { bossKills?: number; maxDepth?: number; graveyardsCleared?: number; coinsAwarded?: boolean };
+    classId?: string;
+    buddyId?: string | null;
+    modifierId?: string | null;
   };
   cycle: {
     phase: GameState['phase'];
@@ -121,6 +126,7 @@ export interface SaveData {
   stats: RunStats;
   dailyQuest?: DailyQuest | null;
   dog: { alive: boolean; hp: number; level: number; kills: number; x: number; y: number } | null;
+  buddy?: { id: string; alive: boolean; hp: number; level: number; kills: number; x: number; y: number } | null;
   /** v2+: the Deep Dark — visited cave floors (index 0 = floor 1), current depth, run seed. */
   caves?: (SavedCave | null)[];
   depth?: number;
@@ -144,6 +150,7 @@ export interface SaveSnapshot {
   shopPos: { x: number; y: number };
   playerWorldPos: { x: number; y: number };
   dog: { alive: boolean; hp: number; level: number; kills: number; x: number; y: number } | null;
+  buddy: { id: CompanionId; alive: boolean; hp: number; level: number; kills: number; x: number; y: number } | null;
   caves: (GeneratedCave | null)[];
   depth: 0 | 1 | 2 | 3;
   runSeed: number;
@@ -248,6 +255,9 @@ function serialize(snap: SaveSnapshot): SaveData {
       activeBuffs: { ...snap.state.activeBuffs },
       heroCharge: snap.state.heroCharge,
       runMeta: { ...snap.state.runMeta },
+      classId: snap.state.classId,
+      buddyId: snap.state.buddyId,
+      modifierId: snap.state.modifierId,
     },
     cycle: {
       phase: snap.state.phase,
@@ -258,6 +268,7 @@ function serialize(snap: SaveSnapshot): SaveData {
     stats: { ...snap.state.stats },
     dailyQuest: snap.state.dailyQuest ? { ...snap.state.dailyQuest, reward: snap.state.dailyQuest.reward.map((r) => ({ ...r })) } : null,
     dog: snap.dog,
+    buddy: snap.buddy,
   };
 }
 
@@ -277,6 +288,9 @@ function stringOr<T extends string>(v: unknown, allowed: readonly T[], fallback:
 }
 
 const VALID_PHASES = ['day', 'dusk', 'night', 'dawn'] as const;
+const VALID_CLASSES: readonly ClassId[] = ['adventurer', 'knight', 'ranger', 'engineer', 'miner'];
+const VALID_COMPANIONS: readonly CompanionId[] = ['rex', 'whiskers', 'ember', 'bolt'];
+const VALID_MODIFIERS: readonly ModifierId[] = ['winter', 'island', 'lava'];
 const VALID_MATERIALS: readonly MaterialId[] = [
   'wood', 'stone', 'iron', 'gold', 'arrow', 'bullet', 'lava',
   'bomb', 'wallReinforced', 'turretFlame',
@@ -388,6 +402,13 @@ function deserialize(raw: unknown): SaveSnapshot | null {
     graveyardsCleared: Math.max(0, intOr(rm.graveyardsCleared, 0)),
     coinsAwarded: boolOr(rm.coinsAwarded, false),
   };
+  state.classId = stringOr(p.classId, VALID_CLASSES, 'adventurer');
+  state.buddyId = (typeof p.buddyId === 'string' && (VALID_COMPANIONS as readonly string[]).includes(p.buddyId))
+    ? (p.buddyId as CompanionId)
+    : null;
+  state.modifierId = (typeof p.modifierId === 'string' && (VALID_MODIFIERS as readonly string[]).includes(p.modifierId))
+    ? (p.modifierId as ModifierId)
+    : null;
   state.hotbarSlot = Math.max(0, intOr(p.hotbarSlot, 0));
   state.inventory.counts = inventory;
   const activeBuffs = (p.activeBuffs ?? {}) as NonNullable<SaveData['player']['activeBuffs']>;
@@ -428,6 +449,23 @@ function deserialize(raw: unknown): SaveSnapshot | null {
       x: numberOr(d.x, playerWorldPos.x + 18),
       y: numberOr(d.y, playerWorldPos.y + 6),
     };
+  }
+
+  // Buddy companion (v2+)
+  let buddy: SaveSnapshot['buddy'] = null;
+  if (data.buddy && typeof data.buddy === 'object') {
+    const b = data.buddy as Partial<NonNullable<SaveData['buddy']>>;
+    if (typeof b.id === 'string' && (VALID_COMPANIONS as readonly string[]).includes(b.id)) {
+      buddy = {
+        id: b.id as CompanionId,
+        alive: boolOr(b.alive, true),
+        hp: Math.max(0, numberOr(b.hp, 50)),
+        level: Math.max(1, intOr(b.level, 1)),
+        kills: Math.max(0, intOr(b.kills, 0)),
+        x: numberOr(b.x, playerWorldPos.x - 18),
+        y: numberOr(b.y, playerWorldPos.y + 6),
+      };
+    }
   }
 
   // Caves (v2+). Missing/corrupt caves fall back to unvisited.
@@ -471,5 +509,5 @@ function deserialize(raw: unknown): SaveSnapshot | null {
   if (depth > 0 && !caves[depth - 1]) depth = 0; // never load into a missing layer
   const runSeed = intOr(data.runSeed, Math.floor(Math.random() * 2 ** 31));
 
-  return { state, tiles, playerSpawn, shopPos, playerWorldPos, dog, caves, depth, runSeed };
+  return { state, tiles, playerSpawn, shopPos, playerWorldPos, dog, buddy, caves, depth, runSeed };
 }

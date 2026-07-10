@@ -80,6 +80,7 @@ describe('SaveLoad', () => {
       shopPos: { x: 35, y: 32 },
       playerWorldPos: { x: 960, y: 980 },
       dog: { alive: true, hp: 50, level: 3, kills: 9, x: 970, y: 985 },
+      buddy: { id: "ember", alive: true, hp: 40, level: 2, kills: 7, x: 950, y: 985 },
       caves: [null, null, null],
       depth: 0,
       runSeed: 12345,
@@ -120,7 +121,7 @@ describe('SaveLoad', () => {
     SaveLoad.save({
       state, tiles: makeTiles(),
       playerSpawn: { x: 0, y: 0 }, shopPos: { x: 0, y: 0 },
-      playerWorldPos: { x: 0, y: 0 }, dog: null,
+      playerWorldPos: { x: 0, y: 0 }, dog: null, buddy: null,
       caves: [null, null, null], depth: 0, runSeed: 1,
     });
     expect(SaveLoad.hasSave()).toBe(true);

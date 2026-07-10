@@ -120,6 +120,7 @@ describe('save/load with the Deep Dark', () => {
       shopPos: { x: 52, y: 50 },
       playerWorldPos: { x: 900, y: 900 },
       dog: null,
+      buddy: null,
       caves: [cave1, cave2, null],
       depth: 2,
       runSeed: 777,
@@ -154,7 +155,7 @@ describe('save/load with the Deep Dark', () => {
     SaveLoad.save({
       state, tiles: surfaceTiles(),
       playerSpawn: { x: 0, y: 0 }, shopPos: { x: 0, y: 0 },
-      playerWorldPos: { x: 0, y: 0 }, dog: null,
+      playerWorldPos: { x: 0, y: 0 }, dog: null, buddy: null,
       caves: [null, null, null], depth: 0, runSeed: 5,
     });
     const raw = JSON.parse(localStorage.getItem('mine2d:save_v1')!);

@@ -6,6 +6,7 @@ import { TileType, TILE_SPECS } from '../world/tileTypes';
 import { TEX } from '../gfx/textures';
 import { sounds } from '../systems/Sound';
 import { incomingDamageMultiplierForState, speedMultiplierForState } from '../systems/PowerUps';
+import { classMeleeBonus } from '../systems/Classes';
 
 export class Player {
   readonly sprite: Phaser.GameObjects.Image;
@@ -153,7 +154,7 @@ export class Player {
 
   meleeAttackDamage(): number {
     const byTier = [6, 14, 24]; // wood, iron, crystal
-    return byTier[Math.min(this.state.swordTier, byTier.length - 1)];
+    return byTier[Math.min(this.state.swordTier, byTier.length - 1)] + classMeleeBonus(this.state);
   }
 
   attackCooldown(): number { return this.attackCooldownMs; }

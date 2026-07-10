@@ -1,4 +1,5 @@
 import { MaterialId } from '../world/tileTypes';
+import { ClassId, CompanionId, ModifierId } from '../systems/MetaStore';
 
 export interface Inventory {
   counts: Partial<Record<MaterialId, number>>;
@@ -84,6 +85,9 @@ export interface GameState {
   /** The Zombie King has fallen — the run is won (Endless+ may continue). */
   victory: boolean;
   endlessPlus: boolean;
+  classId: ClassId;
+  buddyId: CompanionId | null;
+  modifierId: ModifierId | null;
   hotbarSlot: number;
   running: boolean;
   stats: RunStats;
@@ -111,6 +115,9 @@ export function makeGameState(): GameState {
     hasCrystalKey: false,
     victory: false,
     endlessPlus: false,
+    classId: 'adventurer',
+    buddyId: null,
+    modifierId: null,
     hotbarSlot: 0,
     running: true,
     stats: { zombiesKilled: 0, tilesMined: 0, tilesPlaced: 0, goldEarned: 0 },

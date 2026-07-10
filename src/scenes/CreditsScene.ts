@@ -6,6 +6,8 @@ import { sounds } from '../systems/Sound';
 interface CreditsData {
   night: number;
   stats: RunStats;
+  /** Replayed from the menu — no paused run to go back to. */
+  fromMenu?: boolean;
 }
 
 /**
@@ -105,16 +107,22 @@ export class CreditsScene extends Phaser.Scene {
         });
         return btn;
       };
-      mkButton(h - 130, '▶  Keep playing (Endless+)', 0x3a7a3a, () => {
-        this.scene.stop();
-        this.scene.resume('Game');
-        this.scene.resume('UI');
-      });
-      mkButton(h - 66, '🏠  Main Menu', 0x26334a, () => {
-        this.scene.stop('UI');
-        this.scene.stop('Game');
-        this.scene.start('Menu');
-      });
+      if (data.fromMenu) {
+        mkButton(h - 66, '🏠  Main Menu', 0x26334a, () => {
+          this.scene.start('Menu');
+        });
+      } else {
+        mkButton(h - 130, '▶  Keep playing (Endless+)', 0x3a7a3a, () => {
+          this.scene.stop();
+          this.scene.resume('Game');
+          this.scene.resume('UI');
+        });
+        mkButton(h - 66, '🏠  Main Menu', 0x26334a, () => {
+          this.scene.stop('UI');
+          this.scene.stop('Game');
+          this.scene.start('Menu');
+        });
+      }
     });
   }
 }

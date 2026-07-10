@@ -75,6 +75,10 @@ export const TEX = {
   crypt: 'crypt',
   web: 'web',
   bone: 'bone',
+  companion_cat: 'companion_cat',
+  companion_dragon: 'companion_dragon',
+  companion_robot: 'companion_robot',
+  ice: 'ice',
 } as const;
 
 export function generateAllTextures(scene: Phaser.Scene): void {
@@ -1029,6 +1033,101 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     // cracks
     g.fillStyle(0x33333e, 1); g.fillRect(6, 13, 1, 7); g.fillRect(25, 16, 1, 9);
     outline(g, 1, 2, 30, 29, 0x1e1e26);
+  });
+
+  // Whiskers — treasure-sniffing cat
+  make(scene, TEX.companion_cat, 18, 16, (g) => {
+    const fur = 0x8a7aa8;
+    const furDark = 0x695a85;
+    // Tail (curled up)
+    g.fillStyle(furDark, 1); g.fillRect(0, 4, 2, 8); g.fillRect(1, 3, 2, 2);
+    // Body
+    g.fillStyle(fur, 1); g.fillRect(3, 7, 11, 6);
+    g.fillStyle(furDark, 1); g.fillRect(3, 12, 11, 1);
+    // Head
+    g.fillStyle(fur, 1); g.fillRect(9, 2, 8, 7);
+    // Ears
+    g.fillRect(9, 0, 2, 3); g.fillRect(15, 0, 2, 3);
+    g.fillStyle(0xffb0d8, 1); g.fillRect(10, 1, 1, 1); g.fillRect(15, 1, 1, 1);
+    // Eyes — bright green
+    g.fillStyle(0x6ee86e, 1); g.fillRect(11, 4, 2, 2); g.fillRect(14, 4, 2, 2);
+    g.fillStyle(0x0a0a0a, 1); g.fillRect(12, 5, 1, 1); g.fillRect(15, 5, 1, 1);
+    // Nose + whiskers
+    g.fillStyle(0xffb0d8, 1); g.fillRect(13, 7, 1, 1);
+    g.fillStyle(0xffffff, 0.8); g.fillRect(9, 7, 3, 1); g.fillRect(14, 7, 3, 1);
+    // Legs
+    g.fillStyle(furDark, 1);
+    g.fillRect(4, 13, 2, 3); g.fillRect(8, 13, 2, 3); g.fillRect(12, 13, 2, 3);
+    outline(g, 3, 7, 11, 6, 0x2a2438);
+    outline(g, 9, 2, 8, 7, 0x2a2438);
+  });
+
+  // Ember — baby dragon
+  make(scene, TEX.companion_dragon, 20, 18, (g) => {
+    const body = 0xd05a3a;
+    const bodyDark = 0xa8402a;
+    const belly = 0xf2b268;
+    // Wings
+    g.fillStyle(bodyDark, 1);
+    g.fillRect(1, 3, 5, 6); g.fillRect(0, 2, 3, 3);
+    g.fillRect(14, 3, 5, 6); g.fillRect(17, 2, 3, 3);
+    // Body
+    g.fillStyle(body, 1); g.fillRect(5, 6, 10, 8);
+    g.fillStyle(belly, 1); g.fillRect(7, 10, 6, 4);
+    // Head
+    g.fillStyle(body, 1); g.fillRect(6, 1, 8, 7);
+    // Horns
+    g.fillStyle(0xf2e8c8, 1); g.fillRect(6, 0, 2, 2); g.fillRect(12, 0, 2, 2);
+    // Eyes
+    g.fillStyle(0xffe08a, 1); g.fillRect(8, 3, 2, 2); g.fillRect(11, 3, 2, 2);
+    g.fillStyle(0x0a0a0a, 1); g.fillRect(9, 4, 1, 1); g.fillRect(12, 4, 1, 1);
+    // Snout + little flame
+    g.fillStyle(bodyDark, 1); g.fillRect(8, 6, 4, 2);
+    g.fillStyle(0xffaa33, 1); g.fillRect(9, 8, 2, 1);
+    // Tail
+    g.fillStyle(body, 1); g.fillRect(15, 12, 4, 2); g.fillRect(18, 11, 2, 2);
+    // Feet
+    g.fillStyle(bodyDark, 1); g.fillRect(6, 14, 3, 3); g.fillRect(11, 14, 3, 3);
+    outline(g, 5, 6, 10, 8, 0x3a1408);
+    outline(g, 6, 1, 8, 7, 0x3a1408);
+  });
+
+  // Bolt — robo-pup
+  make(scene, TEX.companion_robot, 18, 16, (g) => {
+    const metal = 0x8fa8c8;
+    const metalDark = 0x5a7290;
+    // Antenna
+    g.fillStyle(0xcccccc, 1); g.fillRect(12, 0, 1, 3);
+    g.fillStyle(0xff5050, 1); g.fillRect(11, 0, 3, 1);
+    // Head
+    g.fillStyle(metal, 1); g.fillRect(8, 3, 9, 6);
+    g.fillStyle(metalDark, 1); g.fillRect(8, 8, 9, 1);
+    // Visor eyes
+    g.fillStyle(0x7fe7ff, 1); g.fillRect(10, 5, 5, 2);
+    g.fillStyle(0xffffff, 1); g.fillRect(10, 5, 1, 1);
+    // Body
+    g.fillStyle(metal, 1); g.fillRect(1, 8, 12, 6);
+    g.fillStyle(metalDark, 1); g.fillRect(1, 13, 12, 1);
+    // Wrench decal
+    g.fillStyle(0xffd166, 1); g.fillRect(5, 10, 4, 1); g.fillRect(6, 9, 2, 3);
+    // Tail — spring
+    g.fillStyle(0xcccccc, 1); g.fillRect(0, 6, 2, 2); g.fillRect(1, 8, 1, 2);
+    // Wheels/legs
+    g.fillStyle(0x2a2a34, 1);
+    g.fillRect(2, 14, 3, 2); g.fillRect(9, 14, 3, 2);
+    outline(g, 1, 8, 12, 6, 0x1a2430);
+    outline(g, 8, 3, 9, 6, 0x1a2430);
+  });
+
+  // Ice (frozen lake ground for Winter World)
+  make(scene, TEX.ice, 32, 32, (g) => {
+    g.fillStyle(0xbfe3f2, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0xd8f2fc, 1);
+    g.fillRect(3, 4, 10, 2); g.fillRect(18, 12, 9, 2); g.fillRect(7, 22, 8, 2);
+    g.fillStyle(0x9fcfe4, 1);
+    g.fillRect(14, 6, 1, 8); g.fillRect(15, 13, 6, 1); g.fillRect(5, 15, 1, 9);
+    g.fillRect(24, 20, 1, 7); g.fillRect(20, 26, 5, 1);
+    g.fillStyle(0xffffff, 0.7); g.fillRect(4, 5, 4, 1); g.fillRect(19, 13, 3, 1);
   });
 
   // Thrown bone (skeleton miner projectile)

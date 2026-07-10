@@ -3,13 +3,14 @@ import { SaveStore } from '../systems/SaveStore';
 import { GameState, RunStats } from '../state/GameState';
 import { sounds } from '../systems/Sound';
 import { music } from '../systems/Music';
+import { MetaStore } from '../systems/MetaStore';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
     super('GameOver');
   }
 
-  create(data: { score: number; stats?: RunStats; state?: GameState }): void {
+  create(data: { score: number; stats?: RunStats; state?: GameState; coinsEarned?: number }): void {
     const w = this.scale.width;
     const h = this.scale.height;
     this.cameras.main.setBackgroundColor(0x0e1116);
@@ -32,6 +33,13 @@ export class GameOverScene extends Phaser.Scene {
     this.add.text(w / 2, h / 2 - 70, newRecord ? `★ NEW RECORD! Best: ${best}` : `Best: ${best}`, {
       fontFamily: 'ui-monospace, monospace', fontSize: '14px', color: newRecord ? '#ffd166' : '#a0cfa0',
     }).setOrigin(0.5);
+
+    if (data.coinsEarned && data.coinsEarned > 0) {
+      const total = MetaStore.get().coins;
+      this.add.text(w / 2, h / 2 - 48, `⭐ +${data.coinsEarned} Star Coins  (total ${total}) — spend them in the Hero's Hut`, {
+        fontFamily: 'system-ui', fontSize: '14px', color: '#ffe082', fontStyle: 'bold',
+      }).setOrigin(0.5);
+    }
 
     if (data.stats) {
       const rows: [string, string | number][] = [

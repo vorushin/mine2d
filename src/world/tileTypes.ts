@@ -42,6 +42,8 @@ export const enum TileType {
   Gravestone,
   Crypt,
   Web,
+  /** Winter World: frozen lake you can walk across. */
+  Ice,
 }
 
 export type MaterialId =
@@ -115,6 +117,7 @@ export const TILE_SPECS: Record<TileType, TileSpec> = {
   [TileType.Gravestone]: { walkable: false, opaque: true, baseHp: 20, pickaxeTier: 0, dropMaterial: 'stone', dropCount: 1, tintColor: C(0x9a9aa8) },
   [TileType.Crypt]: { walkable: false, opaque: true, baseHp: 260, pickaxeTier: 0, tintColor: C(0x555568) },
   [TileType.Web]: { walkable: true, opaque: false, baseHp: 1, pickaxeTier: 0, tintColor: C(0xe8e8f8) },
+  [TileType.Ice]: { walkable: true, opaque: false, baseHp: 0, pickaxeTier: 0, tintColor: C(0xbfe3f2) },
 };
 
 export function isPlaceableGround(type: TileType): boolean {
@@ -135,6 +138,7 @@ export function isBreakable(type: TileType): boolean {
     type !== TileType.FlowerField &&
     type !== TileType.Water &&
     type !== TileType.ShopNPC &&
+    type !== TileType.Ice &&
     type !== TileType.CaveFloor &&
     type !== TileType.CaveEntrance &&
     type !== TileType.LadderUp &&

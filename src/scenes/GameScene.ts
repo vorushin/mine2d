@@ -18,7 +18,10 @@ import { Projectile, ProjectileSpawn } from '../entities/Projectile';
 import { TurretInstance, makeTurretBarrel, tickTurrets } from '../entities/Turret';
 import { Pickup } from '../entities/Pickup';
 import { PowerOrb } from '../entities/PowerOrb';
-import { Dog } from '../entities/Dog';
+import { Companion } from '../entities/Companion';
+import { ClassId, CompanionId, MetaStore, ModifierId, starCoinsForRun } from '../systems/MetaStore';
+import { applyClassStart, classBowBonus, classMineMult } from '../systems/Classes';
+import { generateWorld } from '../world/generate';
 import { Chicken } from '../entities/Chicken';
 import { InputSystem } from '../systems/Input';
 import { DayNightCycle } from '../systems/DayNightCycle';
@@ -35,7 +38,7 @@ import { ensureDailyQuest, questRewardLabel, recordQuestProgress } from '../syst
 import { applyPowerUp, damageMultiplierForState, randomPowerUpKind, tickPowerUps } from '../systems/PowerUps';
 import { NIGHT_TWISTS, NightTwist, chooseNightTwist } from '../systems/NightTwists';
 import { SpawnDirector } from '../systems/SpawnDirector';
-import { bossLoot, crateLoot, rollKillDrops, vaultLoot } from '../systems/LootTables';
+import { bossLoot, crateLoot, rollKillDrops, treasureDigLoot, vaultLoot } from '../systems/LootTables';
 import { HERO_BLAST_DAMAGE, HERO_BLAST_MAX_CHARGE, HERO_BLAST_RADIUS_PX, addHeroCharge, canUseHeroBlast as canUseHeroBlastState, consumeHeroBlast, heroChargeForKill } from '../systems/HeroBlast';
 import { TileType, TILE_SPECS, MaterialId, isBreakable, isPlaceableGround } from '../world/tileTypes';
 import { TEX } from '../gfx/textures';
@@ -58,7 +61,8 @@ export class GameScene extends Phaser.Scene {
   turrets: TurretInstance[] = [];
   pickups: Pickup[] = [];
   powerOrbs: PowerOrb[] = [];
-  dog?: Dog;
+  dog?: Companion;
+  buddy?: Companion;
   chickens: Chicken[] = [];
   input2!: InputSystem;
   readonly events2 = new Phaser.Events.EventEmitter();
@@ -95,18 +99,26 @@ export class GameScene extends Phaser.Scene {
   private stars: Phaser.GameObjects.Image[] = [];
 
   private pendingLoad: SaveSnapshot | null = null;
+  private pendingRunConfig: { classId: ClassId; buddyId: CompanionId | null; modifierId: ModifierId | null } | null = null;
 
   constructor() {
     super('Game');
   }
 
-  init(data?: { loadSnapshot?: SaveSnapshot }): void {
+  init(data?: {
+    loadSnapshot?: SaveSnapshot;
+    runConfig?: { classId: ClassId; buddyId: CompanionId | null; modifierId: ModifierId | null };
+  }): void {
     this.pendingLoad = data?.loadSnapshot ?? null;
+    this.pendingRunConfig = data?.runConfig ?? null;
   }
 
   create(): void {
     const loaded = this.pendingLoad;
     this.pendingLoad = null;
+
+    const runConfig = this.pendingRunConfig;
+    this.pendingRunConfig = null;
 
     if (loaded) {
       this.state = loaded.state;
@@ -116,6 +128,11 @@ export class GameScene extends Phaser.Scene {
       this.state.playerMaxHp = PLAYER_MAX_HP;
       addItem(this.state.inventory, 'wood', 12);
       addItem(this.state.inventory, 'stone', 4);
+      if (runConfig) {
+        applyClassStart(this.state, runConfig.classId);
+        this.state.buddyId = runConfig.buddyId;
+        this.state.modifierId = runConfig.modifierId;
+      }
     }
 
     this.cameras.main.setBackgroundColor(0x0e1116);
@@ -129,7 +146,7 @@ export class GameScene extends Phaser.Scene {
         shopPos: loaded.shopPos,
       });
     } else {
-      this.world = new World(this, seed);
+      this.world = new World(this, generateWorld(seed, this.state.modifierId));
     }
     this.world.drawAll();
     this.runSeed = loaded?.runSeed ?? seed;
@@ -153,16 +170,31 @@ export class GameScene extends Phaser.Scene {
       this.player.sprite.x = loaded.playerWorldPos.x;
       this.player.sprite.y = loaded.playerWorldPos.y;
     }
-    this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
+    this.dog = new Companion(this, this.world, 'rex', this.player.x + 18, this.player.y + 6);
     if (loaded?.dog) {
       if (!loaded.dog.alive) {
         this.dog.die();
         this.dog = undefined;
       } else {
-        this.dog.sprite.setPosition(loaded.dog.x, loaded.dog.y);
+        this.dog.setPosition(loaded.dog.x, loaded.dog.y);
         this.dog.hp = loaded.dog.hp;
         this.dog.level = loaded.dog.level;
         this.dog.kills = loaded.dog.kills;
+      }
+    }
+    // The chosen buddy joins Rex
+    if (this.state.buddyId) {
+      this.buddy = new Companion(this, this.world, this.state.buddyId, this.player.x - 18, this.player.y + 6);
+      if (loaded?.buddy) {
+        if (!loaded.buddy.alive) {
+          this.buddy.die();
+          this.buddy = undefined;
+        } else {
+          this.buddy.setPosition(loaded.buddy.x, loaded.buddy.y);
+          this.buddy.hp = loaded.buddy.hp;
+          this.buddy.level = loaded.buddy.level;
+          this.buddy.kills = loaded.buddy.kills;
+        }
       }
     }
     this.spawnChickens();
@@ -208,11 +240,18 @@ export class GameScene extends Phaser.Scene {
       this.state.playerMaxHp += 15;
       this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + 40);
       this.showBanner('☼ DAWN', `you survived! +15 max HP · ${this.state.playerHp}/${this.state.playerMaxHp}`);
-      // Heal dog to full at dawn, or revive if he fell
+      // Heal companions to full at dawn, or revive the fallen
       if (this.dog?.alive) this.dog.heal(this.dog.maxHp);
       else {
-        this.dog = new Dog(this, this.world, this.player.x + 18, this.player.y + 6);
+        this.dog = new Companion(this, this.world, 'rex', this.player.x + 18, this.player.y + 6);
         this.showHint('🐶 Rex is back!');
+      }
+      if (this.state.buddyId) {
+        if (this.buddy?.alive) this.buddy.heal(this.buddy.maxHp);
+        else {
+          this.buddy = new Companion(this, this.world, this.state.buddyId, this.player.x - 18, this.player.y + 6);
+          this.showHint(`✨ ${this.buddy.spec.name} is back!`);
+        }
       }
       // Auto-save the run
       this.saveRun('Auto-saved at dawn');
@@ -409,6 +448,42 @@ export class GameScene extends Phaser.Scene {
       // Temporary small HP regen and a small hint
       this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + 3);
       this.popNumber(this.player.x, this.player.y - 22, '+3 ♥', '#ff88aa');
+    });
+    // Ember spits fireballs
+    this.events.on('companion_firespit', (x: number, y: number, dx: number, dy: number, damage: number) => {
+      this.projectiles.push(new Projectile(this, this.world, {
+        x, y, dx, dy,
+        damage: Math.max(1, Math.round(damage)),
+        owner: 'turret',
+        kind: 'flame',
+        rangePx: TILE_SIZE * 5,
+      }));
+      sounds.turretShoot();
+    });
+    // Whiskers sniffs out buried treasure nearby
+    this.events.on('companion_sniff', (x: number, y: number) => {
+      const from = this.world.worldToTile(x, y);
+      for (let tries = 0; tries < 30; tries++) {
+        const tx = from.x + Math.floor((Math.random() - 0.5) * 12);
+        const ty = from.y + Math.floor((Math.random() - 0.5) * 12);
+        if (!this.world.isWalkable(tx, ty)) continue;
+        const wc = this.world.tileToWorldCenter(tx, ty);
+        this.effects.burst(wc.x, wc.y, 0xffd166, 12, 90, 600, 1);
+        this.showHint('🐱 Whiskers found buried treasure!');
+        sounds.pickup();
+        this.time.delayedCall(900, () => {
+          this.effects.burst(wc.x, wc.y, 0xffd700, 18, 140, 700, 1.3);
+          for (const l of treasureDigLoot()) {
+            this.pickups.push(new Pickup(this, wc.x + (Math.random() - 0.5) * 14, wc.y + (Math.random() - 0.5) * 14, l.m, l.c));
+          }
+        });
+        return;
+      }
+    });
+    // Bolt patches structures
+    this.events.on('companion_repair', (tx: number, ty: number) => {
+      const wc = this.world.tileToWorldCenter(tx, ty);
+      this.effects.burst(wc.x, wc.y, 0x7fe7ff, 8, 70, 350, 0.8);
     });
     this.events.on('zombie_hit_wall', (x: number, y: number, tileType: TileType) => {
       sounds.wallHit();
@@ -645,7 +720,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.player.sprite.setPosition(pos.x, pos.y);
     this.cameras.main.centerOn(pos.x, pos.y);
-    if (this.dog?.alive) this.dog.sprite.setPosition(pos.x + 16, pos.y + 8);
+    if (this.dog?.alive) this.dog.setPosition(pos.x + 16, pos.y + 8);
+    if (this.buddy?.alive) this.buddy.setPosition(pos.x - 16, pos.y + 8);
 
     // Chickens are surface creatures
     for (const c of this.chickens) c.setHidden(depth > 0);
@@ -802,7 +878,7 @@ export class GameScene extends Phaser.Scene {
         this.showBanner('🎂  HAPPY BIRTHDAY', 'Robert — full heal!');
         return;
       }
-      const res = this.world.mineTile(tp.x, tp.y, this.state.pickaxeTier, 4);
+      const res = this.world.mineTile(tp.x, tp.y, this.state.pickaxeTier, 4 * classMineMult(this.state));
       if (res.ok) {
         sounds.mine();
         const wc = this.world.tileToWorldCenter(tp.x, tp.y);
@@ -889,7 +965,7 @@ export class GameScene extends Phaser.Scene {
         y: this.player.y + aim.dy * TILE_SIZE * 0.4,
         dx: aim.dx,
         dy: aim.dy,
-        damage: this.playerDamage(act.weapon === 'bow' ? 14 : 30),
+        damage: this.playerDamage(act.weapon === 'bow' ? 14 + classBowBonus(this.state) : 30),
         owner: 'player',
         kind: act.weapon === 'bow' ? 'arrow' : 'bullet',
       };
@@ -1185,22 +1261,22 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Zombies bite the dog if they're adjacent to it
-    if (this.dog?.alive) {
+    // Zombies bite companions that stray too close
+    for (const pet of [this.dog, this.buddy]) {
+      if (!pet?.alive) continue;
       for (const z of this.zombies) {
         if (!z.alive) continue;
-        const d = Math.hypot(z.sprite.x - this.dog.x, z.sprite.y - this.dog.y);
+        const d = Math.hypot(z.sprite.x - pet.x, z.sprite.y - pet.y);
         if (d < 22 && Math.random() < delta / 1200) {
-          this.dog.hurt(z.damage / 2);
-          this.effects.bloodBurst(this.dog.x, this.dog.y, 0x8a1a1a);
+          pet.hurt(z.damage / 2);
+          this.effects.bloodBurst(pet.x, pet.y, 0x8a1a1a);
         }
       }
     }
     this.zombies = this.zombies.filter((z) => z.alive);
 
-    if (this.dog?.alive) {
-      this.dog.update(delta, this.player, this.zombies);
-    }
+    if (this.dog?.alive) this.dog.update(delta, this.player, this.zombies);
+    if (this.buddy?.alive) this.buddy.update(delta, this.player, this.zombies);
 
     // Chickens wander around (surface only). Golden chickens are caught by contact.
     if (this.state.depth === 0) {
@@ -1339,12 +1415,25 @@ export class GameScene extends Phaser.Scene {
     if (this.state.playerHp <= 0 && this.state.running) {
       this.state.running = false;
       sounds.playerHurt();
+      // Bank Star Coins for the run (once)
+      let coinsEarned = 0;
+      if (!this.state.runMeta.coinsAwarded) {
+        this.state.runMeta.coinsAwarded = true;
+        coinsEarned = starCoinsForRun({
+          nights: this.state.score,
+          bossKills: this.state.runMeta.bossKills,
+          maxDepth: this.state.runMeta.maxDepth,
+          graveyardsCleared: this.state.runMeta.graveyardsCleared,
+          victory: this.state.victory,
+        });
+        MetaStore.addCoins(coinsEarned);
+      }
       this.time.delayedCall(600, () => {
         SaveStore.updateBestScore(this.state.score);
         // Death ends the run — clear the save so "Continue" doesn't offer it
         SaveLoad.clear();
         this.scene.stop('UI');
-        this.scene.start('GameOver', { score: this.state.score, stats: this.state.stats, state: this.state });
+        this.scene.start('GameOver', { score: this.state.score, stats: this.state.stats, state: this.state, coinsEarned });
       });
     }
   }
@@ -1504,6 +1593,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (this.state.endlessPlus) spec = { ...spec, hp: spec.hp * 1.25 };
+    // Winter World: slower but tougher ice zombies
+    if (this.state.modifierId === 'winter') {
+      spec = { ...spec, hp: spec.hp * 1.2, speed: spec.speed * 0.85, tint: 0xaaddff };
+    }
     return spec;
   }
 
@@ -1662,6 +1755,7 @@ export class GameScene extends Phaser.Scene {
     this.state.victory = true;
     this.state.endlessPlus = true;
     this.state.runMeta.bossKills += 1;
+    MetaStore.recordVictory();
     music.setTheme('victory');
     sounds.cake();
     this.cameras.main.shake(500, 0.012);
@@ -1919,6 +2013,9 @@ export class GameScene extends Phaser.Scene {
       playerWorldPos: { x: this.player.x, y: this.player.y },
       dog: this.dog
         ? { alive: this.dog.alive, hp: this.dog.hp, level: this.dog.level, kills: this.dog.kills, x: this.dog.x, y: this.dog.y }
+        : null,
+      buddy: this.buddy
+        ? { id: this.buddy.id, alive: this.buddy.alive, hp: this.buddy.hp, level: this.buddy.level, kills: this.buddy.kills, x: this.buddy.x, y: this.buddy.y }
         : null,
       caves: this.caves,
       depth: this.state.depth,

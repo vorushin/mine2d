@@ -6,6 +6,7 @@ import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { CreditsScene } from './scenes/CreditsScene';
+import { HeroHutScene } from './scenes/HeroHutScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -24,7 +25,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, PreloadScene, MenuScene, GameScene, UIScene, GameOverScene, CreditsScene],
+  scene: [BootScene, PreloadScene, MenuScene, GameScene, UIScene, GameOverScene, CreditsScene, HeroHutScene],
 };
 
 new Phaser.Game(config);
