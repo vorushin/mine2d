@@ -1,10 +1,18 @@
 import Phaser from 'phaser';
 import { World } from '../world/World';
 import { TEX } from '../gfx/textures';
+import { Zombie } from './Zombie';
+
+const PECK_RANGE_PX = 3 * 32;
+const PECK_COOLDOWN_MS = 1500;
+const PECK_DAMAGE = 2;
+export const CHICKEN_ARMY_MAX = 3;
 
 /**
  * Friendly wandering chicken. Roams randomly and flees briefly if approached.
- * Cosmetic; the rare golden variant gives gold when the player catches it.
+ * The rare golden variant gives gold when caught — and regular chickens can
+ * be RECRUITED (tap them) into your chicken army: they follow you into
+ * battle and peck at zombies.
  */
 export class Chicken {
   readonly sprite: Phaser.GameObjects.Image;
@@ -12,6 +20,9 @@ export class Chicken {
   readonly golden: boolean;
   alive = true;
   hp = 8;
+  recruited = false;
+  private bandana?: Phaser.GameObjects.Rectangle;
+  private peckCooldownMs = 0;
   private scene: Phaser.Scene;
   private world: World;
   private vx = 0;
@@ -28,23 +39,36 @@ export class Chicken {
     this.sprite = scene.add.image(x, y, TEX.chicken);
     this.sprite.setScale(golden ? 1.3 : 1.1);
     this.sprite.setDepth(9);
+    this.sprite.setInteractive({ useHandCursor: true });
+    this.sprite.on('pointerdown', () => {
+      if (this.alive && !this.golden) scene.events.emit('chicken_tapped', this);
+    });
     if (golden) {
       this.sprite.setTint(0xffd700);
       scene.tweens.add({ targets: this.sprite, scale: this.sprite.scale * 1.08, yoyo: true, repeat: -1, duration: 500 });
     }
   }
 
+  /** Join the chicken army: red bandana, fearless heart. */
+  recruit(): void {
+    if (this.recruited || this.golden) return;
+    this.recruited = true;
+    this.bandana = this.scene.add.rectangle(this.sprite.x, this.sprite.y - 4, 8, 3, 0xd03030).setDepth(9.5);
+    this.scene.tweens.add({ targets: this.sprite, angle: 360, duration: 350 });
+  }
+
   /** Chickens stay on the surface — hidden & frozen while the player is underground. */
   setHidden(hidden: boolean): void {
     this.sprite.setVisible(!hidden);
     this.shadow.setVisible(!hidden);
+    this.bandana?.setVisible(!hidden);
   }
 
   get hidden(): boolean {
     return !this.sprite.visible;
   }
 
-  update(deltaMs: number, playerX: number, playerY: number): void {
+  update(deltaMs: number, playerX: number, playerY: number, zombies: Zombie[] = []): void {
     if (!this.alive || this.hidden) return;
 
     this.clucksMs -= deltaMs;
@@ -52,6 +76,11 @@ export class Chicken {
       this.clucksMs = 4000 + Math.random() * 8000;
       // tiny idle bob
       this.scene.tweens.add({ targets: this.sprite, y: this.sprite.y - 2, yoyo: true, duration: 180 });
+    }
+
+    if (this.recruited) {
+      this.updateRecruited(deltaMs, playerX, playerY, zombies);
+      return;
     }
 
     // Flee if player too close
@@ -93,6 +122,53 @@ export class Chicken {
     this.shadow.setPosition(this.sprite.x, this.sprite.y + 7);
   }
 
+  /** Army mode: follow the player, peck the nearest zombie in range. */
+  private updateRecruited(deltaMs: number, playerX: number, playerY: number, zombies: Zombie[]): void {
+    if (this.peckCooldownMs > 0) this.peckCooldownMs -= deltaMs;
+
+    let target: Zombie | null = null;
+    let tdist = PECK_RANGE_PX;
+    for (const z of zombies) {
+      if (!z.alive) continue;
+      const d = Math.hypot(z.sprite.x - this.sprite.x, z.sprite.y - this.sprite.y);
+      if (d < tdist) { target = z; tdist = d; }
+    }
+
+    let tx = this.sprite.x;
+    let ty = this.sprite.y;
+    if (target) {
+      tx = target.sprite.x;
+      ty = target.sprite.y;
+      if (tdist < 20 && this.peckCooldownMs <= 0) {
+        this.peckCooldownMs = PECK_COOLDOWN_MS;
+        this.scene.tweens.add({ targets: this.sprite, scaleX: this.sprite.scaleX * 1.25, duration: 70, yoyo: true });
+        this.scene.events.emit('chicken_peck', target, PECK_DAMAGE, this.sprite.x, this.sprite.y);
+      }
+    } else {
+      const fromPlayer = Math.hypot(playerX - this.sprite.x, playerY - this.sprite.y);
+      if (fromPlayer > 56) {
+        tx = playerX + (Math.random() - 0.5) * 20;
+        ty = playerY + 10;
+      }
+    }
+
+    const dx = tx - this.sprite.x;
+    const dy = ty - this.sprite.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 3) {
+      const step = (78 * deltaMs) / 1000;
+      const nx = this.sprite.x + (dx / dist) * step;
+      const ny = this.sprite.y + (dy / dist) * step;
+      if (this.canStand(nx, ny)) {
+        this.sprite.x = nx;
+        this.sprite.y = ny;
+      }
+      this.sprite.setFlipX(dx < 0);
+    }
+    this.shadow.setPosition(this.sprite.x, this.sprite.y + 7);
+    this.bandana?.setPosition(this.sprite.x, this.sprite.y - 4);
+  }
+
   private canStand(wx: number, wy: number): boolean {
     const tp = this.world.worldToTile(wx, wy);
     return this.world.isWalkable(tp.x, tp.y);
@@ -123,6 +199,7 @@ export class Chicken {
   capture(): void {
     if (!this.alive) return;
     this.alive = false;
+    this.bandana?.destroy();
     this.shadow.destroy();
     this.scene.tweens.add({
       targets: this.sprite, alpha: 0, y: this.sprite.y - 18, scaleX: 0.25, scaleY: 0.25, duration: 220,
@@ -132,6 +209,7 @@ export class Chicken {
 
   die(): void {
     this.alive = false;
+    this.bandana?.destroy();
     this.shadow.destroy();
     this.scene.tweens.add({
       targets: this.sprite, alpha: 0, scaleX: 0.4, scaleY: 0.4, duration: 180,

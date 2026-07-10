@@ -13,6 +13,9 @@ export const TOUCH_INHAND_SLOTS: readonly number[] = [
   findIndex('Pistol'),
   findIndex('Bomb'),
   findIndex('Hammer'),
+  findIndex('W Frz'),
+  findIndex('W Str'),
+  findIndex('Rod'),
 ];
 
 export function touchSlotToHotbarIndex(touchSlot: number): number {

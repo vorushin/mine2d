@@ -110,6 +110,11 @@ export class WorldEvents {
     }
   }
 
+  /** Meteor Night twist: called by the scene to rain meteors during the siege. */
+  forceScheduleMeteor(delayMs = 1500): void {
+    this.scheduleMeteor(delayMs);
+  }
+
   private scheduleMeteor(delayMs: number): void {
     // Pick a random tile not too close to the player
     const player = this.deps.playerTilePos();

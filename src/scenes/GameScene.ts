@@ -22,7 +22,7 @@ import { Companion } from '../entities/Companion';
 import { ClassId, CompanionId, MetaStore, ModifierId, starCoinsForRun } from '../systems/MetaStore';
 import { applyClassStart, classBowBonus, classMineMult } from '../systems/Classes';
 import { generateWorld } from '../world/generate';
-import { Chicken } from '../entities/Chicken';
+import { CHICKEN_ARMY_MAX, Chicken } from '../entities/Chicken';
 import { InputSystem } from '../systems/Input';
 import { DayNightCycle } from '../systems/DayNightCycle';
 import { SaveStore } from '../systems/SaveStore';
@@ -484,6 +484,27 @@ export class GameScene extends Phaser.Scene {
     this.events.on('companion_repair', (tx: number, ty: number) => {
       const wc = this.world.tileToWorldCenter(tx, ty);
       this.effects.burst(wc.x, wc.y, 0x7fe7ff, 8, 70, 350, 0.8);
+    });
+    // Tap a chicken to recruit it into the chicken army
+    this.events.on('chicken_tapped', (chicken: Chicken) => {
+      if (chicken.recruited) return;
+      const recruited = this.chickens.filter((c) => c.alive && c.recruited).length;
+      if (recruited >= CHICKEN_ARMY_MAX) {
+        this.showHint(`Your chicken army is full (${CHICKEN_ARMY_MAX})`);
+        return;
+      }
+      chicken.recruit();
+      sounds.pickup();
+      this.effects.burst(chicken.x, chicken.y, 0xffffff, 10, 80, 400, 0.9);
+      this.showHint(`🐔 Chicken recruited! (${recruited + 1}/${CHICKEN_ARMY_MAX}) They fight for you now`);
+    });
+    // Army chickens peck zombies
+    this.events.on('chicken_peck', (target: Zombie, damage: number, _x: number, _y: number) => {
+      if (!target.alive) return;
+      const dmg = target.projectileResistant ? 1 : damage;
+      this.popNumber(target.sprite.x, target.sprite.y - 16, `-${dmg} 🐔`, '#ffe8a0');
+      sounds.click();
+      if (target.takeDamage(dmg)) this.onZombieKilled(target.sprite.x, target.sprite.y, target.variant);
     });
     this.events.on('zombie_hit_wall', (x: number, y: number, tileType: TileType) => {
       sounds.wallHit();
@@ -998,6 +1019,16 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (act.kind === 'wand') {
+      this.useWand(act.wand, worldX, worldY);
+      return;
+    }
+
+    if (act.kind === 'fish') {
+      this.handleFishTap(tp.x, tp.y, dist);
+      return;
+    }
+
     if (act.kind === 'throw') {
       if (!hasItem(this.state.inventory, act.ammo, 1)) return this.showHint('Out of bombs');
       if (this.player.attackCooldown() > 0) return;
@@ -1101,6 +1132,169 @@ export class GameScene extends Phaser.Scene {
   private regenAccumMs = 0;
   private torchAccumMs = 0;
   private trapAccumMs = 0;
+  private freezeCdMs = 0;
+  private stormCdMs = 0;
+  private nightMeteorMs = 0;
+  private fishing: {
+    phase: 'waiting' | 'bite';
+    timerMs: number;
+    x: number;
+    y: number;
+    bobber: Phaser.GameObjects.Arc;
+    exclaim?: Phaser.GameObjects.Text;
+  } | null = null;
+
+  /** Freeze/Storm wands — crystal magic on a shared-per-wand cooldown. */
+  private useWand(wand: 'freeze' | 'storm', worldX: number, worldY: number): void {
+    if (wand === 'freeze') {
+      if (!this.state.hasFreezeWand) return this.showHint('Craft a Freeze Wand first (press C)');
+      if (this.freezeCdMs > 0) return this.showHint('❄ Freeze Wand is recharging…');
+      this.freezeCdMs = 5000;
+      const radius = TILE_SIZE * 3;
+      this.effects.burst(worldX, worldY, 0x9fdcff, 30, 190, 700, 1.6);
+      this.effects.burst(worldX, worldY, 0xffffff, 14, 130, 600, 1.2);
+      sounds.arrowShoot();
+      let caught = 0;
+      for (const z of this.zombies) {
+        if (!z.alive) continue;
+        if (Math.hypot(z.sprite.x - worldX, z.sprite.y - worldY) <= radius) {
+          z.applySlow(4000, 0.45);
+          z.sprite.setTint(0x9fdcff);
+          this.time.delayedCall(4000, () => z.alive && z.sprite.clearTint());
+          caught++;
+        }
+      }
+      this.showHint(caught > 0 ? `❄ Froze ${caught} enem${caught === 1 ? 'y' : 'ies'}!` : '❄ Whiff — nothing in the frost');
+      return;
+    }
+
+    if (!this.state.hasStormWand) return this.showHint('Craft a Storm Wand first (press C)');
+    if (this.stormCdMs > 0) return this.showHint('⚡ Storm Wand is recharging…');
+    // Chain lightning: nearest enemy to the tap, arcing to up to 3 more
+    let current: Zombie | null = null;
+    let bestD = TILE_SIZE * 4;
+    for (const z of this.zombies) {
+      if (!z.alive) continue;
+      const d = Math.hypot(z.sprite.x - worldX, z.sprite.y - worldY);
+      if (d < bestD) { current = z; bestD = d; }
+    }
+    if (!current) return this.showHint('⚡ No enemy near there');
+    this.stormCdMs = 5000;
+    sounds.bossRoar();
+    const hitList: Zombie[] = [];
+    let from = { x: this.player.x, y: this.player.y };
+    while (current && hitList.length < 4) {
+      hitList.push(current);
+      // Bolt visual between points
+      const seg = this.add.line(0, 0, from.x, from.y, current.sprite.x, current.sprite.y, 0xfff8a0, 0.95)
+        .setOrigin(0, 0).setLineWidth(2).setDepth(60);
+      this.tweens.add({ targets: seg, alpha: 0, duration: 260, onComplete: () => seg.destroy() });
+      this.effects.burst(current.sprite.x, current.sprite.y, 0xfff8a0, 12, 110, 450, 1.1);
+      from = { x: current.sprite.x, y: current.sprite.y };
+      const last: Zombie = current;
+      current = null;
+      let nextD = TILE_SIZE * 3;
+      for (const z of this.zombies) {
+        if (!z.alive || hitList.includes(z)) continue;
+        const d = Math.hypot(z.sprite.x - last.sprite.x, z.sprite.y - last.sprite.y);
+        if (d < nextD) { current = z; nextD = d; }
+      }
+    }
+    for (const z of hitList) {
+      const zx = z.sprite.x;
+      const zy = z.sprite.y;
+      const dmg = 18;
+      this.popNumber(zx, zy - 18, `-${dmg}⚡`, '#fff8a0');
+      if (z.takeDamage(dmg)) this.onZombieKilled(zx, zy, z.variant);
+    }
+    this.showHint(`⚡ Chain lightning hit ${hitList.length}!`);
+  }
+
+  /** Fishing: cast at water, wait for the "!", tap to reel. */
+  private handleFishTap(tx: number, ty: number, dist: number): void {
+    if (!this.state.hasRod) return this.showHint('Craft a Fishing Rod first (press C)');
+    if (this.fishing?.phase === 'bite') {
+      this.reelIn();
+      return;
+    }
+    if (this.fishing) {
+      this.cancelFishing('Reeled in early — nothing yet');
+      return;
+    }
+    const t = this.world.getTileAt(tx, ty);
+    if (!t || t.type !== TileType.Water) return this.showHint('Cast into the water');
+    if (dist > PLAYER_REACH_TILES + 1) return this.showHint('Get closer to the water');
+    const wc = this.world.tileToWorldCenter(tx, ty);
+    const bobber = this.add.circle(wc.x, wc.y, 4, 0xff4d4d).setStrokeStyle(1, 0xffffff, 0.9).setDepth(12);
+    this.tweens.add({ targets: bobber, y: wc.y - 2, yoyo: true, repeat: -1, duration: 600 });
+    this.fishing = {
+      phase: 'waiting',
+      timerMs: 1500 + Math.random() * 2500,
+      x: wc.x,
+      y: wc.y,
+      bobber,
+    };
+    sounds.click();
+    this.showHint('🎣 Waiting for a bite… stay still!');
+  }
+
+  private cancelFishing(hint?: string): void {
+    if (!this.fishing) return;
+    this.fishing.bobber.destroy();
+    this.fishing.exclaim?.destroy();
+    this.fishing = null;
+    if (hint) this.showHint(hint);
+  }
+
+  private reelIn(): void {
+    if (!this.fishing) return;
+    const { x, y } = this.fishing;
+    this.cancelFishing();
+    this.effects.burst(x, y, 0x8fc7ff, 14, 120, 500, 1.1);
+    sounds.pickup();
+    const roll = Math.random();
+    if (roll < 0.45) {
+      const heal = 10;
+      this.state.playerHp = Math.min(this.state.playerMaxHp, this.state.playerHp + heal);
+      this.popNumber(this.player.x, this.player.y - 22, `🐟 +${heal} ♥`, '#9effa0');
+      this.showHint('🐟 A tasty fish! +10 HP');
+    } else if (roll < 0.7) {
+      const gold = 1 + Math.floor(Math.random() * 2);
+      this.pickups.push(new Pickup(this, x, y - 6, 'gold', gold));
+      this.showHint('✨ Something shiny!');
+    } else if (roll < 0.9) {
+      this.pickups.push(new Pickup(this, x, y - 6, 'wood', 1));
+      this.showHint('🥾 …an old boot. And a plank?');
+    } else {
+      this.pickups.push(new Pickup(this, x, y - 6, Math.random() < 0.5 ? 'crystal' : 'gold', Math.random() < 0.5 ? 1 : 3));
+      this.effects.burst(x, y, 0xffd700, 22, 160, 800, 1.5);
+      this.showBanner('🎣 RARE CATCH', 'sunken treasure!');
+      sounds.cake();
+    }
+  }
+
+  private updateFishing(delta: number, moving: boolean): void {
+    this.freezeCdMs = Math.max(0, this.freezeCdMs - delta);
+    this.stormCdMs = Math.max(0, this.stormCdMs - delta);
+    if (!this.fishing) return;
+    if (moving) {
+      this.cancelFishing('You scared the fish away');
+      return;
+    }
+    this.fishing.timerMs -= delta;
+    if (this.fishing.phase === 'waiting' && this.fishing.timerMs <= 0) {
+      this.fishing.phase = 'bite';
+      this.fishing.timerMs = 900;
+      this.fishing.exclaim = this.add.text(this.fishing.x, this.fishing.y - 22, '❗', {
+        fontFamily: 'system-ui', fontSize: '22px', color: '#ffd166', fontStyle: 'bold',
+        stroke: '#000', strokeThickness: 4,
+      }).setOrigin(0.5).setDepth(30);
+      this.effects.burst(this.fishing.x, this.fishing.y, 0x8fc7ff, 10, 90, 400, 0.9);
+      sounds.pickup();
+    } else if (this.fishing.phase === 'bite' && this.fishing.timerMs <= 0) {
+      this.cancelFishing('It got away…');
+    }
+  }
 
   private applyTorchAuraDamage(): void {
     const radius = 80; // px
@@ -1164,6 +1358,7 @@ export class GameScene extends Phaser.Scene {
     const mv = this.input2.getMoveVector();
     this.player.update(delta, mv.x, mv.y);
     tickPowerUps(this.state, delta);
+    this.updateFishing(delta, Math.abs(mv.x) > 0.1 || Math.abs(mv.y) > 0.1);
 
     this.cycle.tick(delta);
     if (this.state.depth === 0) this.worldEvents.update(delta);
@@ -1281,7 +1476,7 @@ export class GameScene extends Phaser.Scene {
     // Chickens wander around (surface only). Golden chickens are caught by contact.
     if (this.state.depth === 0) {
       for (const c of this.chickens) {
-        c.update(delta, this.player.x, this.player.y);
+        c.update(delta, this.player.x, this.player.y, this.zombies);
         if (c.golden && c.alive && Math.hypot(c.x - this.player.x, c.y - this.player.y) < 18) {
           this.catchGoldenChicken(c);
         }
@@ -1383,10 +1578,23 @@ export class GameScene extends Phaser.Scene {
     }
     const underground = this.state.depth > 0;
     if (underground) alpha = 0.94; // caves are pitch black at any hour
+    // Fog Night: darker and shorter light pools during the siege
+    const fogNow = !underground && this.nightTwist.fog && (this.state.phase === 'night' || this.state.phase === 'dusk');
+    if (fogNow) alpha = Math.min(0.92, alpha + 0.1);
+    this.lighting.setRadiusMult(fogNow ? 0.55 : 1);
     this.lighting.setDarkness(alpha);
     this.lighting.update(delta, [
       { x: this.player.x, y: this.player.y, radius: underground ? 130 : 145 },
     ]);
+
+    // Meteor Night: the sky keeps falling while the siege runs
+    if (this.nightTwist.nightMeteors && this.state.phase === 'night' && this.state.depth === 0) {
+      this.nightMeteorMs -= delta;
+      if (this.nightMeteorMs <= 0) {
+        this.nightMeteorMs = 9000 + Math.random() * 6000;
+        this.worldEvents.forceScheduleMeteor(1500);
+      }
+    }
 
     // Warm sunset/sunrise overlay: peaks during dusk & dawn, fades to 0 at pure day/night
     let warm = 0;
@@ -1544,6 +1752,22 @@ export class GameScene extends Phaser.Scene {
     this.showHint(`${spec.label}!`);
   }
 
+  /** A goblin's treasure map: bury a chest somewhere far away, mark the map. */
+  private buryTreasure(): void {
+    const pt = this.world.worldToTile(this.player.x, this.player.y);
+    for (let tries = 0; tries < 60; tries++) {
+      const tx = 4 + Math.floor(Math.random() * (this.world.w - 8));
+      const ty = 4 + Math.floor(Math.random() * (this.world.h - 8));
+      if (Math.hypot(tx - pt.x, ty - pt.y) < 20) continue;
+      const t = this.world.getTileAt(tx, ty);
+      if (!t || (t.type !== TileType.Grass && t.type !== TileType.Dirt && t.type !== TileType.Sand)) continue;
+      this.world.replaceTile(tx, ty, TileType.VaultChest);
+      this.showBanner('🗺 TREASURE MAP!', 'the goblin marked an ✕ on your map — find the chest!');
+      sounds.cake();
+      return;
+    }
+  }
+
   private catchGoldenChicken(chicken: Chicken): void {
     if (!chicken.alive || !chicken.golden) return;
     const x = chicken.x;
@@ -1596,6 +1820,14 @@ export class GameScene extends Phaser.Scene {
     // Winter World: slower but tougher ice zombies
     if (this.state.modifierId === 'winter') {
       spec = { ...spec, hp: spec.hp * 1.2, speed: spec.speed * 0.85, tint: 0xaaddff };
+    }
+    // Frost Night twist
+    if (this.nightTwist.enemyHpMult || this.nightTwist.enemySpeedMult) {
+      spec = {
+        ...spec,
+        hp: spec.hp * (this.nightTwist.enemyHpMult ?? 1),
+        speed: spec.speed * (this.nightTwist.enemySpeedMult ?? 1),
+      };
     }
     return spec;
   }
@@ -1842,6 +2074,11 @@ export class GameScene extends Phaser.Scene {
       this.spawnPowerOrb('fury', x, y - 8);
       this.spawnPowerOrb('shield', x + 18, y);
       return;
+    }
+
+    // Goblins sometimes drop a treasure map — an X appears somewhere out there
+    if (variant === 'goblin' && this.state.depth === 0 && Math.random() < 0.15) {
+      this.buryTreasure();
     }
 
     // Drops — generous to reward kills. Combo boost + blood moon boost.

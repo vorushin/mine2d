@@ -81,6 +81,9 @@ export interface GameState {
   hasBow: boolean;
   hasPistol: boolean;
   hasHammer: boolean;
+  hasFreezeWand: boolean;
+  hasStormWand: boolean;
+  hasRod: boolean;
   hasCrystalKey: boolean;
   /** The Zombie King has fallen — the run is won (Endless+ may continue). */
   victory: boolean;
@@ -112,6 +115,9 @@ export function makeGameState(): GameState {
     hasBow: false,
     hasPistol: false,
     hasHammer: false,
+    hasFreezeWand: false,
+    hasStormWand: false,
+    hasRod: false,
     hasCrystalKey: false,
     victory: false,
     endlessPlus: false,

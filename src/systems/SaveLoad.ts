@@ -105,6 +105,9 @@ export interface SaveData {
     hasBow: boolean;
     hasPistol: boolean;
     hasHammer: boolean;
+    hasFreezeWand?: boolean;
+    hasStormWand?: boolean;
+    hasRod?: boolean;
     hasCrystalKey?: boolean;
     victory?: boolean;
     endlessPlus?: boolean;
@@ -247,6 +250,9 @@ function serialize(snap: SaveSnapshot): SaveData {
       hasBow: snap.state.hasBow,
       hasPistol: snap.state.hasPistol,
       hasHammer: snap.state.hasHammer,
+      hasFreezeWand: snap.state.hasFreezeWand,
+      hasStormWand: snap.state.hasStormWand,
+      hasRod: snap.state.hasRod,
       hasCrystalKey: snap.state.hasCrystalKey,
       victory: snap.state.victory,
       endlessPlus: snap.state.endlessPlus,
@@ -392,6 +398,9 @@ function deserialize(raw: unknown): SaveSnapshot | null {
   state.hasBow = boolOr(p.hasBow, false);
   state.hasPistol = boolOr(p.hasPistol, false);
   state.hasHammer = boolOr(p.hasHammer, false);
+  state.hasFreezeWand = boolOr(p.hasFreezeWand, false);
+  state.hasStormWand = boolOr(p.hasStormWand, false);
+  state.hasRod = boolOr(p.hasRod, false);
   state.hasCrystalKey = boolOr(p.hasCrystalKey, false);
   state.victory = boolOr(p.victory, false);
   state.endlessPlus = boolOr(p.endlessPlus, false);

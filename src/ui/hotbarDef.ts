@@ -6,6 +6,8 @@ export type HotbarAction =
   | { kind: 'melee'; label: string; name: string; description: string; color: number }
   | { kind: 'ranged'; label: string; name: string; description: string; color: number; ammo: 'arrow' | 'bullet'; weapon: 'bow' | 'pistol' }
   | { kind: 'hammer'; label: string; name: string; description: string; color: number }
+  | { kind: 'wand'; label: string; name: string; description: string; color: number; wand: 'freeze' | 'storm' }
+  | { kind: 'fish'; label: string; name: string; description: string; color: number }
   | { kind: 'throw'; label: string; name: string; description: string; color: number; ammo: 'bomb' }
   | {
       kind: 'place';
@@ -176,6 +178,29 @@ export const HOTBAR: HotbarAction[] = [
     color: 0x2a2a2a,
     ammo: 'bomb',
   },
+  {
+    kind: 'wand',
+    label: 'W Frz',
+    name: 'Freeze Wand',
+    description: 'Blasts an icy burst where you click — enemies caught inside are slowed. Craft with crystal.',
+    color: 0x7fd7ff,
+    wand: 'freeze',
+  },
+  {
+    kind: 'wand',
+    label: 'W Str',
+    name: 'Storm Wand',
+    description: 'Chain lightning! Zaps the enemy you click and arcs to nearby ones. Craft with crystal.',
+    color: 0xffe37f,
+    wand: 'storm',
+  },
+  {
+    kind: 'fish',
+    label: 'Rod',
+    name: 'Fishing Rod',
+    description: 'Tap the water to cast. When the “!” splashes, tap again to reel in fish, gold… or treasure.',
+    color: 0x8b5a2b,
+  },
 ];
 
 function findIndex(label: string): number {
@@ -191,6 +216,9 @@ export const PRIMARY_HOTBAR_SLOTS: readonly number[] = [
   findIndex('Pistol'),
   findIndex('Hammer'),
   findIndex('Bomb'),
+  findIndex('W Frz'),
+  findIndex('W Str'),
+  findIndex('Rod'),
 ];
 
 export function cyclePrimaryHotbarSlot(currentSlot: number, dir: 1 | -1): number {
@@ -214,6 +242,10 @@ export function hotbarAvailable(slot: number, state: GameState): boolean {
       return hasItem(state.inventory, act.ammo, 1);
     case 'hammer':
       return state.hasHammer;
+    case 'wand':
+      return act.wand === 'freeze' ? state.hasFreezeWand : state.hasStormWand;
+    case 'fish':
+      return state.hasRod;
     case 'throw':
       return hasItem(state.inventory, act.ammo, 1);
     case 'place':

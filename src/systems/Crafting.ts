@@ -17,7 +17,10 @@ export type CraftAction =
   | { kind: 'unlock_bow' }
   | { kind: 'unlock_pistol' }
   | { kind: 'unlock_hammer' }
-  | { kind: 'unlock_key' };
+  | { kind: 'unlock_key' }
+  | { kind: 'unlock_freeze_wand' }
+  | { kind: 'unlock_storm_wand' }
+  | { kind: 'unlock_rod' };
 
 export const RECIPES: Recipe[] = [
   {
@@ -98,6 +101,24 @@ export const RECIPES: Recipe[] = [
     inputs: [{ material: 'soul', count: 2 }, { material: 'crystal', count: 3 }],
     produces: { kind: 'unlock_key' },
   },
+  {
+    id: 'freeze_wand',
+    label: 'Freeze Wand ❄',
+    inputs: [{ material: 'crystal', count: 3 }, { material: 'gold', count: 1 }],
+    produces: { kind: 'unlock_freeze_wand' },
+  },
+  {
+    id: 'storm_wand',
+    label: 'Storm Wand ⚡',
+    inputs: [{ material: 'crystal', count: 3 }, { material: 'iron', count: 2 }],
+    produces: { kind: 'unlock_storm_wand' },
+  },
+  {
+    id: 'fishing_rod',
+    label: 'Fishing Rod 🎣',
+    inputs: [{ material: 'wood', count: 3 }, { material: 'iron', count: 1 }],
+    produces: { kind: 'unlock_rod' },
+  },
 ];
 
 export type CraftOutcome = { ok: true } | { ok: false; reason: 'missing_materials' | 'already_have' };
@@ -113,6 +134,9 @@ export function canCraft(recipe: Recipe, state: GameState): CraftOutcome {
   if (a.kind === 'unlock_pistol' && state.hasPistol) return { ok: false, reason: 'already_have' };
   if (a.kind === 'unlock_hammer' && state.hasHammer) return { ok: false, reason: 'already_have' };
   if (a.kind === 'unlock_key' && state.hasCrystalKey) return { ok: false, reason: 'already_have' };
+  if (a.kind === 'unlock_freeze_wand' && state.hasFreezeWand) return { ok: false, reason: 'already_have' };
+  if (a.kind === 'unlock_storm_wand' && state.hasStormWand) return { ok: false, reason: 'already_have' };
+  if (a.kind === 'unlock_rod' && state.hasRod) return { ok: false, reason: 'already_have' };
   return { ok: true };
 }
 
@@ -142,6 +166,15 @@ export function applyCraft(recipe: Recipe, state: GameState): CraftOutcome {
       break;
     case 'unlock_key':
       state.hasCrystalKey = true;
+      break;
+    case 'unlock_freeze_wand':
+      state.hasFreezeWand = true;
+      break;
+    case 'unlock_storm_wand':
+      state.hasStormWand = true;
+      break;
+    case 'unlock_rod':
+      state.hasRod = true;
       break;
   }
   return { ok: true };

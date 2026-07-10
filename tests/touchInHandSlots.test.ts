@@ -3,8 +3,8 @@ import { TOUCH_INHAND_SLOTS, touchSlotToHotbarIndex } from '../src/ui/touchInHan
 import { HOTBAR } from '../src/ui/hotbarDef';
 
 describe('TOUCH_INHAND_SLOTS', () => {
-  it('exposes exactly 6 in-hand tools', () => {
-    expect(TOUCH_INHAND_SLOTS).toHaveLength(6);
+  it('exposes exactly 9 in-hand tools', () => {
+    expect(TOUCH_INHAND_SLOTS).toHaveLength(9);
   });
 
   it('maps slot 0 to Pickaxe (mine)', () => {
@@ -18,16 +18,19 @@ describe('TOUCH_INHAND_SLOTS', () => {
     expect(HOTBAR[idx].label).toBe('Sword');
   });
 
-  it('covers Bow, Pistol, Bomb, Hammer in slots 2-5', () => {
+  it('covers Bow, Pistol, Bomb, Hammer, wands, and Rod in slots 2-8', () => {
     expect(HOTBAR[touchSlotToHotbarIndex(2)].label).toBe('Bow');
     expect(HOTBAR[touchSlotToHotbarIndex(3)].label).toBe('Pistol');
     expect(HOTBAR[touchSlotToHotbarIndex(4)].label).toBe('Bomb');
     expect(HOTBAR[touchSlotToHotbarIndex(5)].label).toBe('Hammer');
+    expect(HOTBAR[touchSlotToHotbarIndex(6)].label).toBe('W Frz');
+    expect(HOTBAR[touchSlotToHotbarIndex(7)].label).toBe('W Str');
+    expect(HOTBAR[touchSlotToHotbarIndex(8)].label).toBe('Rod');
   });
 
   it('returns -1 for out-of-range slots', () => {
     expect(touchSlotToHotbarIndex(-1)).toBe(-1);
-    expect(touchSlotToHotbarIndex(6)).toBe(-1);
+    expect(touchSlotToHotbarIndex(9)).toBe(-1);
   });
 
   it('only exposes non-place HOTBAR kinds', () => {

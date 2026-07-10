@@ -26,7 +26,7 @@ export class InputSystem {
 
     // Number keys select the compact in-hand hotbar. Buildables live in the build picker.
     const kc = Phaser.Input.Keyboard.KeyCodes;
-    const codes = [kc.ONE, kc.TWO, kc.THREE, kc.FOUR, kc.FIVE, kc.SIX];
+    const codes = [kc.ONE, kc.TWO, kc.THREE, kc.FOUR, kc.FIVE, kc.SIX, kc.SEVEN, kc.EIGHT, kc.NINE];
     const numberKeys = codes.map((code, idx) => ({ code, slot: PRIMARY_HOTBAR_SLOTS[idx] }));
     for (const { code, slot } of numberKeys) {
       const key = kb.addKey(code);
