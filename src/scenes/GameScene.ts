@@ -2,9 +2,16 @@ import Phaser from 'phaser';
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH, PLAYER_MAX_HP, PLAYER_REACH_TILES } from '../config';
 import { World } from '../world/World';
 import { Player } from '../entities/Player';
-import { Zombie, ZombieSpec, ZombieVariant, specForNight, specForGoblin, specForBoss, specForCave } from '../entities/Zombie';
+import { Zombie, ZombieSpec, ZombieVariant, specForNight, specForGoblin, specForCave } from '../entities/Zombie';
 import { GeneratedCave, generateCave } from '../world/generateCave';
 import { Tile } from '../world/generate';
+import {
+  BOSS_INTROS, FallenRecord, GATE_HINT, KING_PHASES, NECRO_CHANNEL_DURATION_MS,
+  NECRO_CHANNEL_EVERY_MS, NECRO_RAISE_COUNT, NECRO_RAISED_HP_FACTOR,
+  QUEEN_SPAWN_EVERY_MS, QUEEN_SPIDERLING_COUNT, bossKindForNight, kingPhase,
+  kingSpec, pickFallenToRaise, specForBossKind,
+} from '../systems/Bosses';
+import { specForSpiderling } from '../entities/Zombie';
 import { Projectile, ProjectileSpawn } from '../entities/Projectile';
 import { TurretInstance, makeTurretBarrel, tickTurrets } from '../entities/Turret';
 import { Pickup } from '../entities/Pickup';
@@ -28,7 +35,8 @@ import { NIGHT_TWISTS, NightTwist, chooseNightTwist } from '../systems/NightTwis
 import { SpawnDirector } from '../systems/SpawnDirector';
 import { bossLoot, crateLoot, rollKillDrops, vaultLoot } from '../systems/LootTables';
 import { HERO_BLAST_DAMAGE, HERO_BLAST_MAX_CHARGE, HERO_BLAST_RADIUS_PX, addHeroCharge, canUseHeroBlast as canUseHeroBlastState, consumeHeroBlast, heroChargeForKill } from '../systems/HeroBlast';
-import { TileType, TILE_SPECS, isBreakable, isPlaceableGround } from '../world/tileTypes';
+import { TileType, TILE_SPECS, MaterialId, isBreakable, isPlaceableGround } from '../world/tileTypes';
+import { TEX } from '../gfx/textures';
 import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
 
@@ -60,6 +68,15 @@ export class GameScene extends Phaser.Scene {
   private lastEntrance: { x: number; y: number } | null = null;
   private surfaceOnly: Phaser.GameObjects.GameObject[] = [];
   private webTiles: { x: number; y: number; ttlMs: number }[] = [];
+  // Boss fight state
+  private fallenThisNight: FallenRecord[] = [];
+  private necroTimerMs = NECRO_CHANNEL_EVERY_MS;
+  private necroChannelMs = 0;
+  private necroChannelStartHp = 0;
+  private necroBeam?: Phaser.GameObjects.Arc;
+  private queenTimerMs = QUEEN_SPAWN_EVERY_MS;
+  private kingSummonMs = 0;
+  private kingPhaseNow: 1 | 2 | 3 = 1;
   private combo = 0;
   private comboTimerMs = 0;
   private lastDayCountdown = -1;
@@ -156,7 +173,10 @@ export class GameScene extends Phaser.Scene {
 
     this.cycle.events.on('night_started', (_n: number, baseTarget: number) => {
       this.nightTwist = chooseNightTwist(this.state.nightNumber);
-      const target = this.director.beginNight(baseTarget, this.nightTwist);
+      // Endless+ (after beating the King): bigger sieges
+      const adjustedBase = this.state.endlessPlus ? Math.ceil(baseTarget * 1.5) : baseTarget;
+      const target = this.director.beginNight(adjustedBase, this.nightTwist);
+      this.fallenThisNight = [];
       sounds.nightStart();
       const isBossNight = this.state.nightNumber % 5 === 0;
       this.bloodMoon = isBossNight;
@@ -607,6 +627,7 @@ export class GameScene extends Phaser.Scene {
     sounds.mineBreak();
     this.cameras.main.flash(240, 0, 0, 0);
     this.applyLayer(depth);
+    this.state.runMeta.maxDepth = Math.max(this.state.runMeta.maxDepth, depth);
     if (depth === 0) {
       this.showBanner('☀ THE SURFACE', 'fresh air at last');
     } else {
@@ -666,6 +687,10 @@ export class GameScene extends Phaser.Scene {
         if (t.type === TileType.DoorWood) {
           this.world.toggleDoor(tx, ty);
           sounds.click();
+          return;
+        }
+        if (t.type === TileType.ThroneGate) {
+          this.openThroneRoom();
           return;
         }
       }
@@ -892,7 +917,7 @@ export class GameScene extends Phaser.Scene {
    * For touch UI: returns a brief tag identifying an interactable tile the
    * player is adjacent to (within a 1-tile radius), or null.
    */
-  getAdjacentInteractable(): 'shop' | 'door' | 'descend' | 'ascend' | null {
+  getAdjacentInteractable(): 'shop' | 'door' | 'descend' | 'ascend' | 'gate' | null {
     const p = this.world.worldToTile(this.player.x, this.player.y);
     const standing = this.world.getTileAt(p.x, p.y);
     if (standing) {
@@ -905,6 +930,7 @@ export class GameScene extends Phaser.Scene {
         if (!t) continue;
         if (t.type === TileType.ShopNPC) return 'shop';
         if (t.type === TileType.DoorWood) return 'door';
+        if (t.type === TileType.ThroneGate) return 'gate';
       }
     }
     return null;
@@ -1086,6 +1112,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const z of this.zombies) z.update(delta, this.player, this.zombies);
+    this.updateBossMechanics(delta);
 
     if (this.zombies.length > 0) {
       this.trapAccumMs -= delta;
@@ -1169,18 +1196,21 @@ export class GameScene extends Phaser.Scene {
         for (const z of hitSet) {
           if (pr.pierceBudget <= 0) break;
           pr.pierceBudget -= 1;
+          const dmg = z.projectileResistant ? 1 : pr.damage;
           this.effects.bloodBurst(z.sprite.x, z.sprite.y, 0xff8030);
-          this.popNumber(z.sprite.x, z.sprite.y - 18, `-${pr.damage}`, '#ffcc33');
+          this.popNumber(z.sprite.x, z.sprite.y - 18, z.projectileResistant ? 'resist' : `-${dmg}`, z.projectileResistant ? '#9aa0aa' : '#ffcc33');
           sounds.zombieHit();
-          if (z.takeDamage(pr.damage)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
+          if (z.takeDamage(dmg)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
         }
         if (pr.pierceBudget <= 0) pr.destroy();
       } else {
         const z = hitSet.values().next().value!;
+        // The Stone Golem shrugs off arrows and bullets
+        const dmg = z.projectileResistant ? 1 : pr.damage;
         this.effects.bloodBurst(z.sprite.x, z.sprite.y, 0x8a1a1a);
-        this.popNumber(z.sprite.x, z.sprite.y - 18, `-${pr.damage}`, pr.kind === 'bullet' ? '#ffaa33' : '#ddddff');
+        this.popNumber(z.sprite.x, z.sprite.y - 18, z.projectileResistant ? 'resist' : `-${dmg}`, z.projectileResistant ? '#9aa0aa' : pr.kind === 'bullet' ? '#ffaa33' : '#ddddff');
         sounds.zombieHit();
-        if (z.takeDamage(pr.damage)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
+        if (z.takeDamage(dmg)) this.onZombieKilled(z.sprite.x, z.sprite.y, z.variant);
         pr.destroy();
       }
     }
@@ -1395,27 +1425,34 @@ export class GameScene extends Phaser.Scene {
   }
 
   private specForSpawn(): ZombieSpec {
+    let spec: ZombieSpec;
     if (this.nightTwist.goblinChance > 0 && Math.random() < this.nightTwist.goblinChance) {
-      return specForGoblin(this.state.nightNumber);
+      spec = specForGoblin(this.state.nightNumber);
+    } else {
+      spec = specForNight(this.state.nightNumber);
+      if (this.nightTwist.runnerChance > 0 && spec.variant === 'normal' && Math.random() < this.nightTwist.runnerChance) {
+        spec = {
+          ...spec,
+          variant: 'fast',
+          hp: Math.max(1, spec.hp * 0.8),
+          speed: spec.speed * 1.55,
+          tint: 0xa8d65c,
+        };
+      }
     }
-    const spec = specForNight(this.state.nightNumber);
-    if (this.nightTwist.runnerChance > 0 && spec.variant === 'normal' && Math.random() < this.nightTwist.runnerChance) {
-      return {
-        ...spec,
-        variant: 'fast',
-        hp: Math.max(1, spec.hp * 0.8),
-        speed: spec.speed * 1.55,
-        tint: 0xa8d65c,
-      };
-    }
+    if (this.state.endlessPlus) spec = { ...spec, hp: spec.hp * 1.25 };
     return spec;
   }
 
   private spawnBoss(): void {
     const { tx, ty } = this.pickSpawnEdge();
     const wc = this.world.tileToWorldCenter(tx, ty);
-    const boss = new Zombie(this, this.world, wc.x, wc.y, specForBoss(this.state.nightNumber));
+    const kind = bossKindForNight(this.state.nightNumber);
+    const boss = new Zombie(this, this.world, wc.x, wc.y, specForBossKind(kind, this.state.nightNumber));
     this.zombies.push(boss);
+    this.necroTimerMs = NECRO_CHANNEL_EVERY_MS * 0.6; // first ritual comes a bit sooner
+    this.necroChannelMs = 0;
+    this.queenTimerMs = QUEEN_SPAWN_EVERY_MS * 0.6;
     this.effects.burst(wc.x, wc.y, 0xff2020, 24, 140, 500, 1.6);
     this.cameras.main.shake(200, 0.005);
     // Brief zoom-out for dramatic effect
@@ -1428,7 +1465,175 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => this.cameras.main.setZoom(1.4),
     });
     sounds.bossRoar();
-    this.showBanner('⚠ BOSS', 'a huge zombie approaches');
+    const intro = BOSS_INTROS[kind];
+    this.showBanner(intro.title, intro.tip);
+  }
+
+  /** Per-frame boss mechanics: necromancer rituals, queen brood, king phases. */
+  private updateBossMechanics(delta: number): void {
+    const boss = this.zombies.find((z) => z.alive && (z.variant === 'boss' || z.variant === 'king'));
+    if (!boss) {
+      if (this.necroBeam) { this.necroBeam.destroy(); this.necroBeam = undefined; }
+      return;
+    }
+
+    if (boss.bossKind === 'necromancer') {
+      if (this.necroChannelMs > 0) {
+        // Channeling — interrupted by any damage
+        if (boss.hp < this.necroChannelStartHp) {
+          this.necroChannelMs = 0;
+          this.necroBeam?.destroy();
+          this.necroBeam = undefined;
+          this.showHint('✨ Ritual broken!');
+          this.popNumber(boss.sprite.x, boss.sprite.y - 30, 'INTERRUPTED', '#9cff9c');
+        } else {
+          this.necroChannelMs -= delta;
+          this.necroBeam?.setPosition(boss.sprite.x, boss.sprite.y);
+          if (this.necroChannelMs <= 0) {
+            this.necroBeam?.destroy();
+            this.necroBeam = undefined;
+            const raised = pickFallenToRaise(this.fallenThisNight, NECRO_RAISE_COUNT);
+            for (const f of raised) {
+              const spec = specForNight(this.state.nightNumber);
+              spec.hp = Math.max(1, spec.hp * NECRO_RAISED_HP_FACTOR);
+              this.zombies.push(new Zombie(this, this.world, f.x, f.y, spec));
+              this.effects.burst(f.x, f.y, 0x9fff6a, 14, 120, 550, 1.2);
+            }
+            if (raised.length > 0) {
+              sounds.bossRoar();
+              this.showHint(`☠ The Necromancer raised ${raised.length} fallen!`);
+            }
+            this.necroTimerMs = NECRO_CHANNEL_EVERY_MS;
+          }
+        }
+      } else {
+        this.necroTimerMs -= delta;
+        if (this.necroTimerMs <= 0) {
+          this.necroChannelMs = NECRO_CHANNEL_DURATION_MS;
+          this.necroChannelStartHp = boss.hp;
+          this.necroBeam = this.add.circle(boss.sprite.x, boss.sprite.y, 34, 0x9fff6a, 0.18)
+            .setStrokeStyle(3, 0x9fff6a, 0.9)
+            .setDepth(15);
+          this.tweens.add({ targets: this.necroBeam, scale: 1.5, alpha: 0.5, yoyo: true, repeat: -1, duration: 300 });
+          this.showHint('⚠ The Necromancer is channeling — hit him!');
+          sounds.nightStart();
+        }
+      }
+    }
+
+    if (boss.bossKind === 'spiderQueen') {
+      this.queenTimerMs -= delta;
+      if (this.queenTimerMs <= 0) {
+        this.queenTimerMs = QUEEN_SPAWN_EVERY_MS;
+        for (let i = 0; i < QUEEN_SPIDERLING_COUNT; i++) {
+          const ox = (Math.random() - 0.5) * 40;
+          const oy = (Math.random() - 0.5) * 40;
+          this.zombies.push(new Zombie(this, this.world, boss.sprite.x + ox, boss.sprite.y + oy, specForSpiderling(this.state.nightNumber)));
+          this.effects.burst(boss.sprite.x + ox, boss.sprite.y + oy, 0xd04060, 8, 80, 350, 0.8);
+        }
+        this.showHint('🕷 Spiderlings!');
+      }
+    }
+
+    if (boss.variant === 'king') {
+      const phase = kingPhase(Math.max(0, boss.hp) / boss.maxHp);
+      if (phase !== this.kingPhaseNow) {
+        this.kingPhaseNow = phase;
+        const tuning = KING_PHASES[phase];
+        boss.speedBoost = tuning.speedMult;
+        boss.wallDamageMult = tuning.wallDamageMult;
+        this.cameras.main.shake(300, 0.008);
+        sounds.bossRoar();
+        this.showBanner(phase === 2 ? '👑 THE KING ENRAGES' : '👑 FINAL FURY', phase === 2 ? 'he smashes through walls!' : 'end him now!');
+      }
+      this.kingSummonMs -= delta;
+      if (this.kingSummonMs <= 0) {
+        const tuning = KING_PHASES[this.kingPhaseNow];
+        this.kingSummonMs = tuning.summonEveryMs;
+        const kt = this.world.worldToTile(boss.sprite.x, boss.sprite.y);
+        let spawned = 0;
+        for (let tries = 0; tries < 30 && spawned < tuning.summonCount; tries++) {
+          const tx = kt.x + Math.floor((Math.random() - 0.5) * 12);
+          const ty = kt.y + Math.floor((Math.random() - 0.5) * 12);
+          if (!this.world.isWalkable(tx, ty)) continue;
+          const wc = this.world.tileToWorldCenter(tx, ty);
+          this.zombies.push(new Zombie(this, this.world, wc.x, wc.y, specForCave(3, this.state.nightNumber)));
+          this.effects.burst(wc.x, wc.y, 0xc46aff, 10, 90, 400, 1);
+          spawned++;
+        }
+        if (spawned > 0) sounds.zombieHit();
+      }
+    }
+  }
+
+  /** Unseal the throne room (needs the Crystal Key) and wake the King. */
+  private openThroneRoom(): void {
+    if (!this.state.hasCrystalKey) {
+      this.showHint(GATE_HINT);
+      sounds.click();
+      return;
+    }
+    const cave = this.caves[2];
+    if (!cave) return;
+    const gates: { x: number; y: number }[] = [];
+    this.world.forEachTileOfType(TileType.ThroneGate, (x, y) => gates.push({ x, y }));
+    for (const g of gates) {
+      this.world.replaceTile(g.x, g.y, TileType.CaveFloor);
+      const wc = this.world.tileToWorldCenter(g.x, g.y);
+      this.effects.burst(wc.x, wc.y, 0x6a2a8a, 20, 160, 700, 1.5);
+    }
+    this.cameras.main.shake(500, 0.01);
+    sounds.bossRoar();
+    music.setTheme('boss');
+    const center = cave.throneCenter ?? cave.entry;
+    const wc = this.world.tileToWorldCenter(center.x, center.y);
+    const king = new Zombie(this, this.world, wc.x, wc.y, kingSpec(this.state.nightNumber));
+    this.zombies.push(king);
+    this.kingPhaseNow = 1;
+    this.kingSummonMs = KING_PHASES[1].summonEveryMs;
+    this.showBanner(BOSS_INTROS.king.title, BOSS_INTROS.king.tip);
+  }
+
+  /** The King is dead. Fireworks, cake, credits, Endless+. */
+  private triggerVictory(x: number, y: number): void {
+    this.state.victory = true;
+    this.state.endlessPlus = true;
+    this.state.runMeta.bossKills += 1;
+    music.setTheme('victory');
+    sounds.cake();
+    this.cameras.main.shake(500, 0.012);
+    this.effects.burst(x, y, 0xffd700, 60, 260, 1200, 2.4);
+    this.launchFireworks();
+    // Cake rain!
+    for (let i = 0; i < 10; i++) {
+      this.time.delayedCall(i * 160, () => {
+        const cx = this.cameras.main.worldView.x + Math.random() * this.cameras.main.worldView.width;
+        const cy = this.cameras.main.worldView.y - 20;
+        const cake = this.add.image(cx, cy, TEX.cake).setDepth(90).setScale(1.2);
+        this.tweens.add({
+          targets: cake,
+          y: cy + this.cameras.main.worldView.height * (0.4 + Math.random() * 0.5),
+          angle: (Math.random() - 0.5) * 360,
+          duration: 1400,
+          ease: 'Bounce.easeOut',
+          onComplete: () => this.tweens.add({ targets: cake, alpha: 0, delay: 800, duration: 400, onComplete: () => cake.destroy() }),
+        });
+      });
+    }
+    // Royal loot burst
+    const loot: { m: MaterialId; c: number }[] = [
+      { m: 'gold', c: 20 }, { m: 'crystal', c: 5 }, { m: 'obsidian', c: 3 },
+    ];
+    for (const l of loot) {
+      this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 40, y + (Math.random() - 0.5) * 40, l.m, l.c));
+    }
+    this.saveRun('Victory saved!');
+    this.showBanner('👑 THE KING HAS FALLEN', 'YOU BEAT THE GAME!');
+    this.time.delayedCall(2600, () => {
+      this.scene.pause('UI');
+      this.scene.pause();
+      this.scene.launch('Credits', { night: this.state.nightNumber, stats: this.state.stats });
+    });
   }
 
   private onZombieKilled(x: number, y: number, variant?: ZombieVariant): void {
@@ -1439,6 +1644,17 @@ export class GameScene extends Phaser.Scene {
     this.state.stats.zombiesKilled += 1;
     this.recordDailyQuestProgress('kill');
     this.gainHeroCharge(heroChargeForKill(variant));
+
+    // The King's fall ends the story (and starts Endless+)
+    if (variant === 'king') {
+      this.triggerVictory(x, y);
+      return;
+    }
+
+    // The Necromancer can re-raise tonight's fallen (surface sieges only)
+    if (this.state.depth === 0 && this.state.phase === 'night' && variant !== 'boss' && this.fallenThisNight.length < 40) {
+      this.fallenThisNight.push({ x, y, raised: false });
+    }
 
     // Combo: consecutive kills within 2 seconds of each other
     this.combo += 1;
@@ -1453,13 +1669,15 @@ export class GameScene extends Phaser.Scene {
     else if (kills === 25) this.showHint('Quarter-century!');
     else if (kills === 50) this.showHint('50 kills — zombie slayer');
 
-    // Boss loot — big payoff with fireworks
+    // Boss loot — big payoff with fireworks + a Boss Soul for the Crystal Key
     if (variant === 'boss') {
-      this.showBanner('🏆 BOSS DOWN', 'massive loot!');
+      this.showBanner('🏆 BOSS DOWN', '+1 Boss Soul · massive loot!');
       sounds.cake();
       music.setTheme('night');
+      this.state.runMeta.bossKills += 1;
       this.effects.burst(x, y, 0xffd700, 40, 220, 1000, 2);
       this.launchFireworks();
+      this.pickups.push(new Pickup(this, x, y - 10, 'soul', 1));
       for (const l of bossLoot()) {
         this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 28, y + (Math.random() - 0.5) * 28, l.m, l.c));
       }
@@ -1515,6 +1733,10 @@ export class GameScene extends Phaser.Scene {
           if (!t) continue;
           if (t.type === TileType.ShopNPC) { prompt = 'E — open Shop'; break outer; }
           if (t.type === TileType.DoorWood) { prompt = 'E — open/close door'; break outer; }
+          if (t.type === TileType.ThroneGate) {
+            prompt = this.state.hasCrystalKey ? 'E — unlock the Throne Room 👑' : 'E — inspect the sealed gate';
+            break outer;
+          }
         }
       }
     }

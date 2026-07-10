@@ -578,6 +578,30 @@ export class World {
     this.spawnObject(x, y);
   }
 
+  /**
+   * Replace a tile outright, bypassing breakability rules (throne gates
+   * crumbling, scripted events). Cleans up the old display object.
+   */
+  replaceTile(x: number, y: number, type: TileType): void {
+    const t = this.getTileAt(x, y);
+    if (!t) return;
+    const key = this.key(x, y);
+    const obj = this.tileObjects.get(key);
+    if (obj) {
+      this.destroyObjectExtras(obj);
+      this.scene.tweens.killTweensOf(obj);
+      obj.destroy();
+      this.tileObjects.delete(key);
+    }
+    const bar = this.hpBars.get(key);
+    if (bar) { bar.destroy(); this.hpBars.delete(key); }
+    const overlay = this.damageOverlays.get(key);
+    if (overlay) { overlay.destroy(); this.damageOverlays.delete(key); }
+    t.type = type;
+    t.hp = TILE_SPECS[type].baseHp;
+    if (this.needsObject(type)) this.spawnObject(x, y);
+  }
+
   forEachTileOfType(type: TileType, visitor: (x: number, y: number) => void): void {
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {

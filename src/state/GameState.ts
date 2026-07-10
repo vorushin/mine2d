@@ -57,6 +57,14 @@ export interface ActiveBuffs {
   shieldMs: number;
 }
 
+export interface RunMeta {
+  bossKills: number;
+  maxDepth: number;
+  graveyardsCleared: number;
+  /** Star Coins already banked for this run (guards double-award). */
+  coinsAwarded: boolean;
+}
+
 export interface GameState {
   nightNumber: number;
   score: number;
@@ -72,9 +80,14 @@ export interface GameState {
   hasBow: boolean;
   hasPistol: boolean;
   hasHammer: boolean;
+  hasCrystalKey: boolean;
+  /** The Zombie King has fallen — the run is won (Endless+ may continue). */
+  victory: boolean;
+  endlessPlus: boolean;
   hotbarSlot: number;
   running: boolean;
   stats: RunStats;
+  runMeta: RunMeta;
   dailyQuest: DailyQuest | null;
   activeBuffs: ActiveBuffs;
   heroCharge: number;
@@ -95,9 +108,13 @@ export function makeGameState(): GameState {
     hasBow: false,
     hasPistol: false,
     hasHammer: false,
+    hasCrystalKey: false,
+    victory: false,
+    endlessPlus: false,
     hotbarSlot: 0,
     running: true,
     stats: { zombiesKilled: 0, tilesMined: 0, tilesPlaced: 0, goldEarned: 0 },
+    runMeta: { bossKills: 0, maxDepth: 0, graveyardsCleared: 0, coinsAwarded: false },
     dailyQuest: null,
     activeBuffs: { hasteMs: 0, furyMs: 0, shieldMs: 0 },
     heroCharge: 0,

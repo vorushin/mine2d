@@ -23,7 +23,15 @@ export function consumeHeroBlast(state: GameState): boolean {
 export function heroChargeForKill(variant?: ZombieVariant): number {
   switch (variant) {
     case 'boss':
+    case 'king':
       return HERO_BLAST_MAX_CHARGE;
+    case 'skeleton':
+      return 12;
+    case 'spider':
+    case 'bat':
+      return 8;
+    case 'spiderling':
+      return 4;
     case 'brute':
       return 18;
     case 'armored':

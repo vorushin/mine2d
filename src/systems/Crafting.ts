@@ -16,7 +16,8 @@ export type CraftAction =
   | { kind: 'sword_upgrade'; toTier: 1 | 2 }
   | { kind: 'unlock_bow' }
   | { kind: 'unlock_pistol' }
-  | { kind: 'unlock_hammer' };
+  | { kind: 'unlock_hammer' }
+  | { kind: 'unlock_key' };
 
 export const RECIPES: Recipe[] = [
   {
@@ -91,6 +92,12 @@ export const RECIPES: Recipe[] = [
     inputs: [{ material: 'wood', count: 3 }, { material: 'iron', count: 2 }],
     produces: { kind: 'material', material: 'bomb', count: 3 },
   },
+  {
+    id: 'crystal_key',
+    label: 'Crystal Key 👑',
+    inputs: [{ material: 'soul', count: 2 }, { material: 'crystal', count: 3 }],
+    produces: { kind: 'unlock_key' },
+  },
 ];
 
 export type CraftOutcome = { ok: true } | { ok: false; reason: 'missing_materials' | 'already_have' };
@@ -105,6 +112,7 @@ export function canCraft(recipe: Recipe, state: GameState): CraftOutcome {
   if (a.kind === 'unlock_bow' && state.hasBow) return { ok: false, reason: 'already_have' };
   if (a.kind === 'unlock_pistol' && state.hasPistol) return { ok: false, reason: 'already_have' };
   if (a.kind === 'unlock_hammer' && state.hasHammer) return { ok: false, reason: 'already_have' };
+  if (a.kind === 'unlock_key' && state.hasCrystalKey) return { ok: false, reason: 'already_have' };
   return { ok: true };
 }
 
@@ -131,6 +139,9 @@ export function applyCraft(recipe: Recipe, state: GameState): CraftOutcome {
       break;
     case 'unlock_hammer':
       state.hasHammer = true;
+      break;
+    case 'unlock_key':
+      state.hasCrystalKey = true;
       break;
   }
   return { ok: true };

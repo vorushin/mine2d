@@ -103,10 +103,14 @@ export interface SaveData {
     hasBow: boolean;
     hasPistol: boolean;
     hasHammer: boolean;
+    hasCrystalKey?: boolean;
+    victory?: boolean;
+    endlessPlus?: boolean;
     hotbarSlot: number;
     inventory: Record<string, number>;
     activeBuffs?: { hasteMs?: number; furyMs?: number; shieldMs?: number };
     heroCharge?: number;
+    runMeta?: { bossKills?: number; maxDepth?: number; graveyardsCleared?: number; coinsAwarded?: boolean };
   };
   cycle: {
     phase: GameState['phase'];
@@ -236,10 +240,14 @@ function serialize(snap: SaveSnapshot): SaveData {
       hasBow: snap.state.hasBow,
       hasPistol: snap.state.hasPistol,
       hasHammer: snap.state.hasHammer,
+      hasCrystalKey: snap.state.hasCrystalKey,
+      victory: snap.state.victory,
+      endlessPlus: snap.state.endlessPlus,
       hotbarSlot: snap.state.hotbarSlot,
       inventory: { ...snap.state.inventory.counts } as Record<string, number>,
       activeBuffs: { ...snap.state.activeBuffs },
       heroCharge: snap.state.heroCharge,
+      runMeta: { ...snap.state.runMeta },
     },
     cycle: {
       phase: snap.state.phase,
@@ -370,6 +378,16 @@ function deserialize(raw: unknown): SaveSnapshot | null {
   state.hasBow = boolOr(p.hasBow, false);
   state.hasPistol = boolOr(p.hasPistol, false);
   state.hasHammer = boolOr(p.hasHammer, false);
+  state.hasCrystalKey = boolOr(p.hasCrystalKey, false);
+  state.victory = boolOr(p.victory, false);
+  state.endlessPlus = boolOr(p.endlessPlus, false);
+  const rm = (p.runMeta ?? {}) as NonNullable<SaveData['player']['runMeta']>;
+  state.runMeta = {
+    bossKills: Math.max(0, intOr(rm.bossKills, 0)),
+    maxDepth: Math.max(0, Math.min(3, intOr(rm.maxDepth, 0))),
+    graveyardsCleared: Math.max(0, intOr(rm.graveyardsCleared, 0)),
+    coinsAwarded: boolOr(rm.coinsAwarded, false),
+  };
   state.hotbarSlot = Math.max(0, intOr(p.hotbarSlot, 0));
   state.inventory.counts = inventory;
   const activeBuffs = (p.activeBuffs ?? {}) as NonNullable<SaveData['player']['activeBuffs']>;

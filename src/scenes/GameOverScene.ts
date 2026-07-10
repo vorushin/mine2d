@@ -15,12 +15,15 @@ export class GameOverScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x0e1116);
     music.setTheme('menu');
 
-    this.add.text(w / 2, h / 2 - 160, 'you died', {
-      fontFamily: 'system-ui', fontSize: '56px', color: '#ff7070', fontStyle: 'bold',
+    const victorious = data.state?.victory === true;
+    this.add.text(w / 2, h / 2 - 160, victorious ? 'a legend falls' : 'you died', {
+      fontFamily: 'system-ui', fontSize: '56px', color: victorious ? '#ffd166' : '#ff7070', fontStyle: 'bold',
       stroke: '#330000', strokeThickness: 4,
     }).setOrigin(0.5);
 
-    this.add.text(w / 2, h / 2 - 100, `Nights survived: ${data.score}`, {
+    this.add.text(w / 2, h / 2 - 100, victorious
+      ? `👑 beat the Zombie King · ${data.score} nights survived`
+      : `Nights survived: ${data.score}`, {
       fontFamily: 'ui-monospace, monospace', fontSize: '20px', color: '#fff',
     }).setOrigin(0.5);
 

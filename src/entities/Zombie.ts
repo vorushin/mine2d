@@ -33,6 +33,8 @@ export interface ZombieSpec {
   /** Ranged attacker: stands off and throws bones (skeleton miners). */
   rangedRangePx?: number;
   rangedFireMs?: number;
+  /** Which blood-moon boss this is (drives texture + fight mechanics). */
+  bossKind?: 'necromancer' | 'spiderQueen' | 'golem' | 'king';
 }
 
 /** Ambient cave monsters — tougher on deeper floors and later nights. */
@@ -167,6 +169,115 @@ export function generateZombieTextures(scene: Phaser.Scene): void {
   drawSpiderling(scene);
   drawSkeleton(scene);
   drawKing(scene);
+  drawNecromancer(scene);
+  drawSpiderQueen(scene);
+  drawGolem(scene);
+}
+
+// --- The Necromancer: hooded purple ritualist --------------------------------
+
+function drawNecromancer(scene: Phaser.Scene): void {
+  const key = 'boss_necromancer';
+  if (scene.textures.exists(key)) return;
+  const g = scene.add.graphics();
+  const robe = 0x4a2a6e;
+  const robeDark = 0x321c4c;
+  const robeLight = 0x6a3f9e;
+  // Hood
+  g.fillStyle(robe, 1); g.fillRect(7, 1, 12, 9);
+  g.fillStyle(robeLight, 1); g.fillRect(7, 1, 12, 2);
+  // Face void with glowing eyes
+  g.fillStyle(0x0a0512, 1); g.fillRect(9, 4, 8, 5);
+  g.fillStyle(0x9fff6a, 1); g.fillRect(10, 6, 2, 2); g.fillRect(14, 6, 2, 2);
+  // Robe body
+  g.fillStyle(robe, 1); g.fillRect(5, 10, 16, 16);
+  g.fillStyle(robeDark, 1);
+  g.fillRect(5, 24, 16, 2); g.fillRect(5, 10, 2, 16); g.fillRect(19, 10, 2, 16);
+  // Rune belt
+  g.fillStyle(0x9fff6a, 0.9);
+  g.fillRect(8, 16, 2, 2); g.fillRect(12, 16, 2, 2); g.fillRect(16, 16, 2, 2);
+  // Staff arm + skull staff
+  g.fillStyle(robeLight, 1); g.fillRect(20, 12, 4, 3);
+  g.fillStyle(0x6a4a2a, 1); g.fillRect(24, 2, 2, 24);
+  g.fillStyle(0xe8e0d0, 1); g.fillRect(22, 0, 6, 5);
+  g.fillStyle(0x0a0512, 1); g.fillRect(23, 1, 1, 2); g.fillRect(26, 1, 1, 2);
+  // Tattered robe bottom
+  g.fillStyle(robeDark, 1);
+  g.fillRect(6, 26, 2, 2); g.fillRect(10, 26, 3, 2); g.fillRect(16, 26, 2, 2);
+  outlineRect(g, 5, 10, 16, 16, 0x160a24);
+  g.generateTexture(key, 28, 28);
+  g.destroy();
+}
+
+// --- The Spider Queen: huge crowned spider -----------------------------------
+
+function drawSpiderQueen(scene: Phaser.Scene): void {
+  const key = 'boss_queen';
+  if (scene.textures.exists(key)) return;
+  const g = scene.add.graphics();
+  const bodyC = 0x3a2438;
+  const legC = 0x241626;
+  // Legs — 4 per side, thicker
+  g.fillStyle(legC, 1);
+  for (let i = 0; i < 4; i++) {
+    const y = 8 + i * 4;
+    g.fillRect(0, y, 8, 2); g.fillRect(24, y, 8, 2);
+    g.fillRect(0, y - 2, 2, 3); g.fillRect(30, y - 2, 2, 3);
+  }
+  // Abdomen with hourglass mark
+  g.fillStyle(bodyC, 1); g.fillRect(8, 6, 16, 13);
+  g.fillStyle(0x55355a, 1); g.fillRect(9, 7, 14, 3);
+  g.fillStyle(0xd04060, 1);
+  g.fillRect(14, 9, 4, 2); g.fillRect(15, 11, 2, 2); g.fillRect(14, 13, 4, 2);
+  // Head
+  g.fillStyle(bodyC, 1); g.fillRect(11, 18, 10, 6);
+  // Eye cluster
+  g.fillStyle(0xff3050, 1);
+  g.fillRect(12, 20, 2, 2); g.fillRect(15, 21, 2, 2); g.fillRect(18, 20, 2, 2);
+  g.fillStyle(0xffa0b0, 1); g.fillRect(12, 20, 1, 1); g.fillRect(18, 20, 1, 1);
+  // Fangs
+  g.fillStyle(0xf0e8d8, 1); g.fillRect(13, 24, 2, 2); g.fillRect(17, 24, 2, 2);
+  // Tiny golden crown
+  g.fillStyle(0xffd700, 1);
+  g.fillRect(12, 2, 8, 3);
+  g.fillRect(12, 0, 2, 3); g.fillRect(15, 0, 2, 3); g.fillRect(18, 0, 2, 3);
+  outlineRect(g, 8, 6, 16, 13, 0x120a14);
+  g.generateTexture(key, 32, 26);
+  g.destroy();
+}
+
+// --- The Stone Golem: walking boulder ----------------------------------------
+
+function drawGolem(scene: Phaser.Scene): void {
+  const key = 'boss_golem';
+  if (scene.textures.exists(key)) return;
+  const g = scene.add.graphics();
+  const stone = 0x6a6a78;
+  const stoneDark = 0x4a4a56;
+  const stoneLight = 0x8a8a9a;
+  // Massive body
+  g.fillStyle(stone, 1); g.fillRect(4, 8, 24, 18);
+  g.fillStyle(stoneLight, 1); g.fillRect(5, 9, 22, 4);
+  // Cracks
+  g.fillStyle(stoneDark, 1);
+  g.fillRect(10, 12, 2, 8); g.fillRect(18, 10, 2, 6); g.fillRect(14, 20, 6, 2);
+  // Head — small boulder set into shoulders
+  g.fillStyle(stone, 1); g.fillRect(10, 2, 12, 8);
+  g.fillStyle(stoneLight, 1); g.fillRect(11, 3, 10, 2);
+  // Glowing amber eyes
+  g.fillStyle(0xffb830, 1); g.fillRect(12, 5, 3, 2); g.fillRect(17, 5, 3, 2);
+  // Moss patches
+  g.fillStyle(0x3e6e3e, 1);
+  g.fillRect(5, 22, 5, 3); g.fillRect(24, 12, 3, 4); g.fillRect(12, 8, 3, 2);
+  // Arms — slabs
+  g.fillStyle(stoneDark, 1); g.fillRect(0, 10, 4, 14); g.fillRect(28, 10, 4, 14);
+  g.fillStyle(stone, 1); g.fillRect(0, 10, 4, 4); g.fillRect(28, 10, 4, 4);
+  // Legs
+  g.fillStyle(stoneDark, 1); g.fillRect(8, 26, 6, 6); g.fillRect(18, 26, 6, 6);
+  outlineRect(g, 4, 8, 24, 18, 0x26262e);
+  outlineRect(g, 10, 2, 12, 8, 0x26262e);
+  g.generateTexture(key, 32, 32);
+  g.destroy();
 }
 
 // --- Bat: purple cave flyer, wide wings, tiny fangs -------------------------
@@ -908,9 +1019,14 @@ export class Zombie {
   readonly noWallAttack: boolean;
   readonly layWebs: boolean;
   readonly projectileResistant: boolean;
+  bossKind?: 'necromancer' | 'spiderQueen' | 'golem' | 'king';
   /** Temporary slow (webs, freeze wand): speed multiplier until the timer runs out. */
   slowMs = 0;
   slowFactor = 1;
+  /** Rage speed multiplier (the King's later phases). */
+  speedBoost = 1;
+  /** Wall-damage multiplier (the King smashes through defenses when enraged). */
+  wallDamageMult = 1;
   private rangedRangePx?: number;
   private rangedFireMs?: number;
   private rangedTimerMs = 800;
@@ -921,6 +1037,9 @@ export class Zombie {
     this.scene = scene;
     this.world = world;
     const key =
+      spec.bossKind === 'necromancer' ? 'boss_necromancer' :
+      spec.bossKind === 'spiderQueen' ? 'boss_queen' :
+      spec.bossKind === 'golem' ? 'boss_golem' :
       spec.variant === 'boss' ? 'zombie_boss' :
       spec.variant === 'goblin' ? 'zombie_goblin' :
       spec.variant === 'fast' ? 'zombie_fast' :
@@ -986,6 +1105,7 @@ export class Zombie {
     this.projectileResistant = spec.projectileResistant ?? false;
     this.rangedRangePx = spec.rangedRangePx;
     this.rangedFireMs = spec.rangedFireMs;
+    this.bossKind = spec.bossKind;
   }
 
   /** Apply a temporary slow (webs, freeze wand). Strongest slow wins. */
@@ -995,7 +1115,7 @@ export class Zombie {
   }
 
   private effectiveSpeed(): number {
-    return this.slowMs > 0 ? this.speed * this.slowFactor : this.speed;
+    return (this.slowMs > 0 ? this.speed * this.slowFactor : this.speed) * this.speedBoost;
   }
 
   private hasLineOfSight(px: number, py: number): boolean {
@@ -1101,7 +1221,7 @@ export class Zombie {
       if (dist <= TILE_SIZE * 0.85) {
         // Within striking range — attack the wall
         if (this.attackCooldownMs <= 0) {
-          const broke = this.world.damageTile(this.target.tx, this.target.ty, Math.ceil(this.damage / 1.6));
+          const broke = this.world.damageTile(this.target.tx, this.target.ty, Math.ceil((this.damage * this.wallDamageMult) / 1.6));
           this.attackCooldownMs = 550;
           this.scene.events.emit('zombie_hit_wall', target.x, target.y, t.type);
           if (broke) {
@@ -1179,7 +1299,7 @@ export class Zombie {
         : this.world.worldToTile(this.sprite.x, nextY);
       const t = this.world.getTileAt(probe.x, probe.y);
       if (t && !this.world.isWalkable(probe.x, probe.y) && t.type !== TileType.ShopNPC && this.attackCooldownMs <= 0) {
-        this.world.damageTile(probe.x, probe.y, Math.ceil(this.damage / 1.6));
+        this.world.damageTile(probe.x, probe.y, Math.ceil((this.damage * this.wallDamageMult) / 1.6));
         this.attackCooldownMs = 550;
         this.scene.events.emit('zombie_hit_wall', probe.x * TILE_SIZE + TILE_SIZE / 2, probe.y * TILE_SIZE + TILE_SIZE / 2, t.type);
       }

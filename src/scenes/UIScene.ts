@@ -206,13 +206,20 @@ export class UIScene extends Phaser.Scene {
   }
 
   private renderBossHpBar(): void {
-    const boss = this.gameScene.zombies.find((z) => z.alive && z.variant === 'boss');
+    const boss = this.gameScene.zombies.find((z) => z.alive && (z.variant === 'boss' || z.variant === 'king'));
     if (!boss || !this.bossHpBarBg || !this.bossHpBarFg || !this.bossHpLabel) {
       this.bossHpBarBg?.setVisible(false);
       this.bossHpBarFg?.setVisible(false);
       this.bossHpLabel?.setVisible(false);
       return;
     }
+    this.bossHpLabel.setText(
+      boss.variant === 'king' ? '👑 THE ZOMBIE KING' :
+      boss.bossKind === 'necromancer' ? '☠ THE NECROMANCER' :
+      boss.bossKind === 'spiderQueen' ? '🕷 THE SPIDER QUEEN' :
+      boss.bossKind === 'golem' ? '🗿 THE STONE GOLEM' :
+      'BOSS',
+    );
     const w = this.scale.width;
     const cx = w / 2;
     const cy = 90;
