@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SaveStore } from '../systems/SaveStore';
 import { GameState, RunStats } from '../state/GameState';
 import { sounds } from '../systems/Sound';
+import { music } from '../systems/Music';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -12,6 +13,7 @@ export class GameOverScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
     this.cameras.main.setBackgroundColor(0x0e1116);
+    music.setTheme('menu');
 
     this.add.text(w / 2, h / 2 - 160, 'you died', {
       fontFamily: 'system-ui', fontSize: '56px', color: '#ff7070', fontStyle: 'bold',

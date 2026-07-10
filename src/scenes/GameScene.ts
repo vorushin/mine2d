@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH, COLORS, PLAYER_MAX_HP, PLAYER_REACH_TILES } from '../config';
+import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH, PLAYER_MAX_HP, PLAYER_REACH_TILES } from '../config';
 import { World } from '../world/World';
 import { Player } from '../entities/Player';
 import { Zombie, ZombieSpec, ZombieVariant, specForNight, specForGoblin, specForBoss } from '../entities/Zombie';
@@ -14,15 +14,19 @@ import { DayNightCycle } from '../systems/DayNightCycle';
 import { SaveStore } from '../systems/SaveStore';
 import { SaveLoad, SaveSnapshot } from '../systems/SaveLoad';
 import { sounds } from '../systems/Sound';
+import { music } from '../systems/Music';
 import { Effects } from '../gfx/Effects';
 import { WorldEvents } from '../systems/WorldEvents';
+import { LightingSystem } from '../systems/Lighting';
 import { useHammer, bombExplosion, BombVictim } from '../systems/Engineering';
 import { DailyQuestKind, GameState, PowerUpKind, makeGameState, addItem, removeItem, hasItem } from '../state/GameState';
 import { ensureDailyQuest, questRewardLabel, recordQuestProgress } from '../systems/DailyQuests';
 import { applyPowerUp, damageMultiplierForState, randomPowerUpKind, tickPowerUps } from '../systems/PowerUps';
-import { NIGHT_TWISTS, NightTwist, chooseNightTwist, modifiedNightTarget } from '../systems/NightTwists';
+import { NIGHT_TWISTS, NightTwist, chooseNightTwist } from '../systems/NightTwists';
+import { SpawnDirector } from '../systems/SpawnDirector';
+import { bossLoot, crateLoot, rollKillDrops } from '../systems/LootTables';
 import { HERO_BLAST_DAMAGE, HERO_BLAST_MAX_CHARGE, HERO_BLAST_RADIUS_PX, addHeroCharge, canUseHeroBlast as canUseHeroBlastState, consumeHeroBlast, heroChargeForKill } from '../systems/HeroBlast';
-import { TileType, TILE_SPECS, MaterialId, isBreakable, isPlaceableGround } from '../world/tileTypes';
+import { TileType, TILE_SPECS, isBreakable, isPlaceableGround } from '../world/tileTypes';
 import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
 
@@ -47,16 +51,13 @@ export class GameScene extends Phaser.Scene {
   input2!: InputSystem;
   readonly events2 = new Phaser.Events.EventEmitter();
   nightTwist: NightTwist = NIGHT_TWISTS.normal;
-  private nightSpawned = 0;
-  private nightTarget = 0;
-  private nightSpawnTimerMs = 0;
-  private bossSpawned = false;
+  readonly director = new SpawnDirector();
   private combo = 0;
   private comboTimerMs = 0;
   private lastDayCountdown = -1;
   private bloodMoon = false;
   private bloodOverlay?: Phaser.GameObjects.Rectangle;
-  private nightOverlay!: Phaser.GameObjects.Rectangle;
+  lighting!: LightingSystem;
   private warmOverlay!: Phaser.GameObjects.Rectangle;
   private hintText!: Phaser.GameObjects.Text;
   private reticle!: Phaser.GameObjects.Rectangle;
@@ -143,15 +144,12 @@ export class GameScene extends Phaser.Scene {
     this.cycle = new DayNightCycle(this.state);
 
     this.cycle.events.on('night_started', (_n: number, baseTarget: number) => {
-      this.nightSpawned = 0;
       this.nightTwist = chooseNightTwist(this.state.nightNumber);
-      const target = modifiedNightTarget(baseTarget, this.nightTwist);
-      this.nightTarget = target;
-      this.nightSpawnTimerMs = 0;
-      this.bossSpawned = false;
+      const target = this.director.beginNight(baseTarget, this.nightTwist);
       sounds.nightStart();
       const isBossNight = this.state.nightNumber % 5 === 0;
       this.bloodMoon = isBossNight;
+      music.setTheme(isBossNight ? 'boss' : 'night');
       const sub = isBossNight
         ? `🩸 BLOOD MOON  ·  ${target} zombies + BOSS`
         : this.nightTwist.kind !== 'normal'
@@ -231,8 +229,10 @@ export class GameScene extends Phaser.Scene {
         this.showHint('Day — mine, build, craft');
         this.worldEvents.onDayStart();
         this.startDailyQuest(true);
+        music.setTheme('day');
       }
     });
+    music.setTheme('day');
 
     this.events.on('volcano_spawned', (tx: number, ty: number) => {
       this.showBanner('🌋 VOLCANO', 'a volcano erupted nearby!');
@@ -258,6 +258,7 @@ export class GameScene extends Phaser.Scene {
     };
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       sounds.ensure();
+      music.poke();
       if (!passesUIFilter(pointer)) return;
       this.handleTileInteraction(pointer.worldX, pointer.worldY);
     });
@@ -285,6 +286,10 @@ export class GameScene extends Phaser.Scene {
       this.scene.get('UI').events.emit('open_modal', 'craft');
     });
     this.input.keyboard?.on('keydown-R', () => this.useHeroBlast());
+    this.input.keyboard?.on('keydown-M', () => {
+      const muted = music.toggleMuted();
+      this.showHint(muted ? '🔇 Sound off' : '🔊 Sound on');
+    });
 
     // Shift — dash
     this.input.keyboard?.on('keydown-SHIFT', () => {
@@ -332,10 +337,7 @@ export class GameScene extends Phaser.Scene {
       sounds.mineBreak();
     });
 
-    this.nightOverlay = this.add
-      .rectangle(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE, COLORS.night_overlay, 0)
-      .setOrigin(0, 0);
-    this.nightOverlay.setDepth(100);
+    this.lighting = new LightingSystem(this, this.world);
 
     this.warmOverlay = this.add
       .rectangle(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE, 0xff7a33, 0)
@@ -555,10 +557,7 @@ export class GameScene extends Phaser.Scene {
           }
           // Supply crates spill a generous loot pile
           if (t.type === TileType.SupplyCrate) {
-            const loot: { m: MaterialId; c: number }[] = [
-              { m: 'wood', c: 4 }, { m: 'stone', c: 3 }, { m: 'gold', c: 2 }, { m: 'arrow', c: 6 },
-            ];
-            for (const l of loot) {
+            for (const l of crateLoot()) {
               this.pickups.push(new Pickup(this, wc.x + (Math.random() - 0.5) * 16, wc.y + (Math.random() - 0.5) * 16, l.m, l.c));
             }
             this.effects.burst(wc.x, wc.y, 0xffd700, 20, 180, 700, 1.4);
@@ -840,23 +839,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Zombie spawn pacing — staggered, not a burst.
-    if (this.state.phase === 'night' && this.nightSpawned < this.nightTarget) {
-      this.nightSpawnTimerMs -= delta;
-      if (this.nightSpawnTimerMs <= 0) {
-        // Mini-wave: spawn a small group occasionally
-        const wave = Math.random() < 0.35 ? 2 + Math.floor(Math.random() * 2) : 1;
-        const n = Math.min(wave, this.nightTarget - this.nightSpawned);
-        for (let i = 0; i < n; i++) this.spawnZombie();
-        // Pacing: faster on later nights so the target actually spawns in time
-        this.nightSpawnTimerMs = Math.max(450, 2600 - Math.min(2200, this.state.nightNumber * 140));
-      }
-    }
-
-    // Boss spawns at the midpoint of boss-nights (every 5th)
-    if (this.state.phase === 'night' && !this.bossSpawned && this.state.nightNumber % 5 === 0 && this.state.phaseElapsedMs > 15000) {
-      this.bossSpawned = true;
-      this.spawnBoss();
+    // Spawn pacing (night sieges + boss scheduling) lives in the director.
+    for (const req of this.director.update(delta, this.state)) {
+      if (req.kind === 'boss') this.spawnBoss();
+      else this.spawnZombie();
     }
 
     // Combo countdown
@@ -886,7 +872,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Early dawn: if all zombies for tonight are spawned and none alive, skip remaining night
-    if (this.state.phase === 'night' && this.nightSpawned >= this.nightTarget && this.zombies.length === 0) {
+    if (this.state.phase === 'night' && this.director.allSpawned && this.zombies.length === 0) {
       const remaining = this.cycle.phaseDuration(this.state.phase) - this.state.phaseElapsedMs;
       if (remaining > 500) this.state.phaseElapsedMs = this.cycle.phaseDuration(this.state.phase) - 400;
     }
@@ -997,15 +983,18 @@ export class GameScene extends Phaser.Scene {
     }
     this.powerOrbs = this.powerOrbs.filter((p) => p.alive);
 
-    // Night overlay alpha
+    // Darkness level for the lighting system
     let alpha = 0;
     switch (this.state.phase) {
       case 'day': alpha = 0; break;
-      case 'dusk': alpha = 0.35 * this.cycle.phaseProgress(); break;
-      case 'night': alpha = 0.58; break;
-      case 'dawn': alpha = 0.58 * (1 - this.cycle.phaseProgress()); break;
+      case 'dusk': alpha = 0.5 * this.cycle.phaseProgress(); break;
+      case 'night': alpha = 0.78; break;
+      case 'dawn': alpha = 0.78 * (1 - this.cycle.phaseProgress()); break;
     }
-    this.nightOverlay.setFillStyle(COLORS.night_overlay, alpha);
+    this.lighting.setDarkness(alpha);
+    this.lighting.update(delta, [
+      { x: this.player.x, y: this.player.y, radius: 145 },
+    ]);
 
     // Warm sunset/sunrise overlay: peaks during dusk & dawn, fades to 0 at pure day/night
     let warm = 0;
@@ -1174,7 +1163,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnZombie(): void {
-    this.nightSpawned += 1;
     const { tx, ty } = this.pickSpawnEdge();
     const wc = this.world.tileToWorldCenter(tx, ty);
     this.zombies.push(new Zombie(this, this.world, wc.x, wc.y, this.specForSpawn()));
@@ -1244,13 +1232,10 @@ export class GameScene extends Phaser.Scene {
     if (variant === 'boss') {
       this.showBanner('🏆 BOSS DOWN', 'massive loot!');
       sounds.cake();
+      music.setTheme('night');
       this.effects.burst(x, y, 0xffd700, 40, 220, 1000, 2);
       this.launchFireworks();
-      const bossLoot: { m: MaterialId; c: number }[] = [
-        { m: 'gold', c: 6 }, { m: 'iron', c: 4 }, { m: 'stone', c: 3 },
-        { m: 'bullet', c: 5 }, { m: 'lava', c: 1 },
-      ];
-      for (const l of bossLoot) {
+      for (const l of bossLoot()) {
         this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 28, y + (Math.random() - 0.5) * 28, l.m, l.c));
       }
       this.spawnPowerOrb('haste', x - 18, y);
@@ -1260,18 +1245,13 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Drops — generous to reward kills. Combo boost + blood moon boost.
-    const comboGoldBonus = Math.min(3, Math.floor(this.combo / 5));
-    const moonMult = (this.bloodMoon ? 1.5 : 1) * this.nightTwist.lootMultiplier;
-    const drops: { m: MaterialId; c: number }[] = [];
-    if (variant === 'goblin') {
-      drops.push({ m: 'gold', c: 2 + Math.floor(this.state.nightNumber / 4) });
-      if (Math.random() < 0.35) drops.push({ m: 'bomb', c: 1 });
-      if (Math.random() < 0.5) drops.push({ m: 'arrow', c: 4 });
-    }
-    if (Math.random() < 0.75 * moonMult) drops.push({ m: 'gold', c: 1 + comboGoldBonus });
-    if (Math.random() < 0.32 * moonMult) drops.push({ m: 'wood', c: 1 });
-    if (Math.random() < 0.16 * moonMult) drops.push({ m: 'stone', c: 1 });
-    if (Math.random() < 0.08 * moonMult) drops.push({ m: 'iron', c: 1 });
+    const drops = rollKillDrops({
+      variant,
+      night: this.state.nightNumber,
+      combo: this.combo,
+      bloodMoon: this.bloodMoon,
+      lootMultiplier: this.nightTwist.lootMultiplier,
+    });
     for (const d of drops) {
       this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 10, d.m, d.c));
       if (d.m === 'gold') this.state.stats.goldEarned += d.c;

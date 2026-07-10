@@ -12,6 +12,9 @@ const COLORS: Record<MaterialId, number> = {
   bomb: 0x2a2a2a,
   wallReinforced: 0x5a5a70,
   turretFlame: 0xff8030,
+  crystal: 0x7fe7ff,
+  obsidian: 0x2c2440,
+  soul: 0xb08aff,
 };
 
 const LETTERS: Record<MaterialId, string> = {
@@ -25,6 +28,9 @@ const LETTERS: Record<MaterialId, string> = {
   bomb: 'X',
   wallReinforced: 'R',
   turretFlame: 'T',
+  crystal: 'C',
+  obsidian: 'O',
+  soul: '☽',
 };
 
 /**

@@ -62,6 +62,8 @@ export interface GameState {
   score: number;
   phase: 'day' | 'dusk' | 'night' | 'dawn';
   phaseElapsedMs: number;
+  /** 0 = surface, 1-3 = cave floors of the Deep Dark. */
+  depth: 0 | 1 | 2 | 3;
   playerHp: number;
   playerMaxHp: number;
   inventory: Inventory;
@@ -84,6 +86,7 @@ export function makeGameState(): GameState {
     score: 0,
     phase: 'day',
     phaseElapsedMs: 0,
+    depth: 0,
     playerHp: 100,
     playerMaxHp: 100,
     inventory: makeInventory(),

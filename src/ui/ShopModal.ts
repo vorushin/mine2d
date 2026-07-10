@@ -29,6 +29,9 @@ const MATERIAL_COLORS: Record<MaterialId, number> = {
   bomb: 0x2a2a2a,
   wallReinforced: 0x5a5a70,
   turretFlame: 0xff8030,
+  crystal: 0x7fe7ff,
+  obsidian: 0x2c2440,
+  soul: 0xb08aff,
 };
 
 const ROW_H = 56;

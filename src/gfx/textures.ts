@@ -59,9 +59,27 @@ export const TEX = {
   bridge: 'bridge',
   crack_light: 'crack_light',
   crack_heavy: 'crack_heavy',
+  light_glow: 'light_glow',
 } as const;
 
 export function generateAllTextures(scene: Phaser.Scene): void {
+  // Radial light-pool texture for the LightingSystem (canvas gradient — the
+  // one texture that shouldn't be crisp pixel art).
+  if (!scene.textures.exists(TEX.light_glow)) {
+    const size = 256;
+    const canvas = scene.textures.createCanvas(TEX.light_glow, size, size);
+    if (canvas) {
+      const ctx = canvas.getContext();
+      const grad = ctx.createRadialGradient(size / 2, size / 2, 8, size / 2, size / 2, size / 2);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.55, 'rgba(255,255,255,0.72)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+      canvas.refresh();
+    }
+  }
+
   make(scene, TEX.particle, 4, 4, (g) => {
     g.fillStyle(0xffffff, 1);
     g.fillRect(0, 0, 4, 4);

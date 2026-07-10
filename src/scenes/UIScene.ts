@@ -15,6 +15,7 @@ import { Minimap } from '../ui/Minimap';
 import { questProgressLabel, questRewardLabel } from '../systems/DailyQuests';
 import { POWER_UP_SPECS } from '../systems/PowerUps';
 import { HERO_BLAST_MAX_CHARGE } from '../systems/HeroBlast';
+import { music } from '../systems/Music';
 
 export class UIScene extends Phaser.Scene {
   private gameScene!: GameScene;
@@ -117,6 +118,7 @@ export class UIScene extends Phaser.Scene {
           onPress: () => this.gameScene.cycle.skipToNight(),
           isVisible: () => this.state.phase === 'day',
         },
+        { icon: '🔊', label: 'Sound on/off', onPress: () => { music.toggleMuted(); } },
       ]);
       this.helpButton.setVisible(false);
     }

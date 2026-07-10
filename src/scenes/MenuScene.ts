@@ -3,6 +3,7 @@ import { SaveStore } from '../systems/SaveStore';
 import { SaveLoad } from '../systems/SaveLoad';
 import { TEX } from '../gfx/textures';
 import { sounds } from '../systems/Sound';
+import { music } from '../systems/Music';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -13,6 +14,22 @@ export class MenuScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
     this.cameras.main.setBackgroundColor(0x162033);
+
+    // Music starts on the first gesture (browser audio unlock)
+    music.setTheme('menu');
+    this.input.on('pointerdown', () => {
+      sounds.ensure();
+      music.poke();
+    });
+
+    // Sound toggle (top-right)
+    const soundBtn = this.add.text(w - 18, 16, music.muted ? '🔇' : '🔊', {
+      fontFamily: 'system-ui', fontSize: '22px',
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+    soundBtn.on('pointerdown', () => {
+      const muted = music.toggleMuted();
+      soundBtn.setText(muted ? '🔇' : '🔊');
+    });
 
     // Background grid of grass/dirt tiles
     const bg = this.add.graphics();

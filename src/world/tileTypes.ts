@@ -34,7 +34,8 @@ export type MaterialId =
   | 'wood' | 'stone' | 'iron' | 'gold'
   | 'arrow' | 'bullet'
   | 'lava'
-  | 'bomb' | 'wallReinforced' | 'turretFlame';
+  | 'bomb' | 'wallReinforced' | 'turretFlame'
+  | 'crystal' | 'obsidian' | 'soul';
 
 export type ToolTier = 0 | 1 | 2 | 3;
 
