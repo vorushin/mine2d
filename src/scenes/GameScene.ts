@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH, PLAYER_MAX_HP, PLAYER_REACH_TILES } from '../config';
 import { World } from '../world/World';
 import { Player } from '../entities/Player';
-import { Zombie, ZombieSpec, ZombieVariant, specForNight, specForGoblin, specForBoss } from '../entities/Zombie';
+import { Zombie, ZombieSpec, ZombieVariant, specForNight, specForGoblin, specForBoss, specForCave } from '../entities/Zombie';
+import { GeneratedCave, generateCave } from '../world/generateCave';
+import { Tile } from '../world/generate';
 import { Projectile, ProjectileSpawn } from '../entities/Projectile';
 import { TurretInstance, makeTurretBarrel, tickTurrets } from '../entities/Turret';
 import { Pickup } from '../entities/Pickup';
@@ -24,7 +26,7 @@ import { ensureDailyQuest, questRewardLabel, recordQuestProgress } from '../syst
 import { applyPowerUp, damageMultiplierForState, randomPowerUpKind, tickPowerUps } from '../systems/PowerUps';
 import { NIGHT_TWISTS, NightTwist, chooseNightTwist } from '../systems/NightTwists';
 import { SpawnDirector } from '../systems/SpawnDirector';
-import { bossLoot, crateLoot, rollKillDrops } from '../systems/LootTables';
+import { bossLoot, crateLoot, rollKillDrops, vaultLoot } from '../systems/LootTables';
 import { HERO_BLAST_DAMAGE, HERO_BLAST_MAX_CHARGE, HERO_BLAST_RADIUS_PX, addHeroCharge, canUseHeroBlast as canUseHeroBlastState, consumeHeroBlast, heroChargeForKill } from '../systems/HeroBlast';
 import { TileType, TILE_SPECS, isBreakable, isPlaceableGround } from '../world/tileTypes';
 import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
@@ -52,6 +54,12 @@ export class GameScene extends Phaser.Scene {
   readonly events2 = new Phaser.Events.EventEmitter();
   nightTwist: NightTwist = NIGHT_TWISTS.normal;
   readonly director = new SpawnDirector();
+  runSeed = 0;
+  caves: (GeneratedCave | null)[] = [null, null, null];
+  private surfaceTiles: Tile[][] = [];
+  private lastEntrance: { x: number; y: number } | null = null;
+  private surfaceOnly: Phaser.GameObjects.GameObject[] = [];
+  private webTiles: { x: number; y: number; ttlMs: number }[] = [];
   private combo = 0;
   private comboTimerMs = 0;
   private lastDayCountdown = -1;
@@ -105,7 +113,10 @@ export class GameScene extends Phaser.Scene {
       this.world = new World(this, seed);
     }
     this.world.drawAll();
-    this.drawDecor(seed);
+    this.runSeed = loaded?.runSeed ?? seed;
+    this.surfaceTiles = this.world.tiles;
+    this.caves = loaded?.caves ?? [null, null, null];
+    this.drawDecor(this.runSeed);
 
     this.effects = new Effects(this);
     this.worldEvents = new WorldEvents({
@@ -176,46 +187,48 @@ export class GameScene extends Phaser.Scene {
       }
       // Auto-save the run
       this.saveRun('Auto-saved at dawn');
-      // Replant a few trees each dawn (nature recovers)
-      let planted = 0;
-      for (let tries = 0; tries < 40 && planted < 3; tries++) {
-        const tx = 4 + Math.floor(Math.random() * (WORLD_WIDTH - 8));
-        const ty = 4 + Math.floor(Math.random() * (WORLD_HEIGHT - 8));
-        const tile = this.world.getTileAt(tx, ty);
-        if (tile && tile.type === TileType.Grass) {
-          // Don't plant right next to the player
-          if (this.player.tileDistance(tx, ty) > 4) {
-            this.world.placeTile(tx, ty, TileType.Tree);
-            planted++;
+      // Nature recovers on the surface (skipped while you're underground)
+      if (this.state.depth === 0) {
+        let planted = 0;
+        for (let tries = 0; tries < 40 && planted < 3; tries++) {
+          const tx = 4 + Math.floor(Math.random() * (this.world.w - 8));
+          const ty = 4 + Math.floor(Math.random() * (this.world.h - 8));
+          const tile = this.world.getTileAt(tx, ty);
+          if (tile && tile.type === TileType.Grass) {
+            // Don't plant right next to the player
+            if (this.player.tileDistance(tx, ty) > 4) {
+              this.world.placeTile(tx, ty, TileType.Tree);
+              planted++;
+            }
           }
         }
-      }
 
-      // Respawn chickens each dawn (keep world lively)
-      const target = 6;
-      while (this.chickens.length < target) {
-        let placed = false;
-        for (let tries = 0; tries < 20 && !placed; tries++) {
-          const tx = 4 + Math.floor(Math.random() * (WORLD_WIDTH - 8));
-          const ty = 4 + Math.floor(Math.random() * (WORLD_HEIGHT - 8));
-          if (this.world.isWalkable(tx, ty)) {
-            const wc = this.world.tileToWorldCenter(tx, ty);
-            this.chickens.push(new Chicken(this, this.world, wc.x, wc.y));
-            placed = true;
+        // Respawn chickens each dawn (keep world lively)
+        const target = 6;
+        while (this.chickens.length < target) {
+          let placed = false;
+          for (let tries = 0; tries < 20 && !placed; tries++) {
+            const tx = 4 + Math.floor(Math.random() * (this.world.w - 8));
+            const ty = 4 + Math.floor(Math.random() * (this.world.h - 8));
+            if (this.world.isWalkable(tx, ty)) {
+              const wc = this.world.tileToWorldCenter(tx, ty);
+              this.chickens.push(new Chicken(this, this.world, wc.x, wc.y));
+              placed = true;
+            }
           }
+          if (!placed) break;
         }
-        if (!placed) break;
-      }
-      // 20% chance to spawn a golden chicken somewhere in the world
-      if (Math.random() < 0.2) {
-        for (let tries = 0; tries < 40; tries++) {
-          const tx = 4 + Math.floor(Math.random() * (WORLD_WIDTH - 8));
-          const ty = 4 + Math.floor(Math.random() * (WORLD_HEIGHT - 8));
-          if (this.world.isWalkable(tx, ty)) {
-            const wc = this.world.tileToWorldCenter(tx, ty);
-            this.chickens.push(new Chicken(this, this.world, wc.x, wc.y, true));
-            this.showHint('✨ Golden chicken: touch it for 12 gold!');
-            break;
+        // 20% chance to spawn a golden chicken somewhere in the world
+        if (Math.random() < 0.2) {
+          for (let tries = 0; tries < 40; tries++) {
+            const tx = 4 + Math.floor(Math.random() * (this.world.w - 8));
+            const ty = 4 + Math.floor(Math.random() * (this.world.h - 8));
+            if (this.world.isWalkable(tx, ty)) {
+              const wc = this.world.tileToWorldCenter(tx, ty);
+              this.chickens.push(new Chicken(this, this.world, wc.x, wc.y, true));
+              this.showHint('✨ Golden chicken: touch it for 12 gold!');
+              break;
+            }
           }
         }
       }
@@ -227,12 +240,28 @@ export class GameScene extends Phaser.Scene {
     this.cycle.events.on('phase_changed', (phase: GameState['phase']) => {
       if (phase === 'day') {
         this.showHint('Day — mine, build, craft');
-        this.worldEvents.onDayStart();
+        if (this.state.depth === 0) this.worldEvents.onDayStart();
         this.startDailyQuest(true);
-        music.setTheme('day');
+        music.setTheme(this.state.depth > 0 ? 'caves' : 'day');
       }
     });
     music.setTheme('day');
+
+    // Spider webs decay after a few seconds
+    this.world.events.on('tile_placed', (x: number, y: number, type: TileType) => {
+      if (type === TileType.Web) this.webTiles.push({ x, y, ttlMs: 6000 });
+    });
+
+    // Skeleton miners (and other ranged enemies) throw bones
+    this.events.on('enemy_shoot', (x: number, y: number, dx: number, dy: number, damage: number) => {
+      this.projectiles.push(new Projectile(this, this.world, {
+        x, y, dx, dy,
+        damage: Math.max(1, Math.round(damage)),
+        owner: 'enemy',
+        kind: 'bone',
+      }));
+      sounds.arrowShoot();
+    });
 
     this.events.on('volcano_spawned', (tx: number, ty: number) => {
       this.showBanner('🌋 VOLCANO', 'a volcano erupted nearby!');
@@ -387,6 +416,12 @@ export class GameScene extends Phaser.Scene {
     this.drawWorldBorder();
 
     this.refreshPlayerWeapon();
+    this.rebuildTurrets();
+
+    // Loading a save made underground: swap straight to that cave layer
+    if (loaded && loaded.depth > 0 && this.caves[loaded.depth - 1]) {
+      this.applyLayer(loaded.depth, { x: loaded.playerWorldPos.x, y: loaded.playerWorldPos.y });
+    }
 
     this.scene.launch('UI', { gameScene: this });
     this.showHint('Day 1 — mine, build, press H for help');
@@ -399,6 +434,7 @@ export class GameScene extends Phaser.Scene {
 
   private drawWorldBorder(): void {
     const g = this.add.graphics().setDepth(0.7);
+    this.surfaceOnly.push(g);
     // Outer frame of dark dirt/stone-ish color
     g.fillStyle(0x0a0a0a, 1);
     g.fillRect(-4, -4, WORLD_WIDTH * TILE_SIZE + 8, 4);
@@ -421,6 +457,7 @@ export class GameScene extends Phaser.Scene {
    */
   private drawDecor(seed: number): void {
     const g = this.add.graphics().setDepth(0.5);
+    this.surfaceOnly.push(g);
     let hash = seed >>> 0;
     const rand = () => {
       hash = (Math.imul(hash ^ (hash >>> 15), hash | 1) + 0x6d2b79f5) >>> 0;
@@ -480,8 +517,142 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Lazily generate (and cache) a cave floor for this run. */
+  private caveFor(floor: 1 | 2 | 3): GeneratedCave {
+    let cave = this.caves[floor - 1];
+    if (!cave) {
+      cave = generateCave(this.runSeed, floor);
+      this.caves[floor - 1] = cave;
+    }
+    return cave;
+  }
+
+  /** Rebuild turret instances (barrels + cooldowns) from the active layer's tiles. */
+  private rebuildTurrets(): void {
+    for (const t of this.turrets) t.barrel.destroy();
+    this.turrets = [];
+    for (const [tileType, kind] of [[TileType.TurretBasic, 'basic'], [TileType.TurretFlame, 'flame']] as const) {
+      this.world.forEachTileOfType(tileType, (tx, ty) => {
+        this.turrets.push({ tileX: tx, tileY: ty, kind, cooldownMs: 0, barrel: makeTurretBarrel(this, tx, ty, kind) });
+      });
+    }
+  }
+
+  /**
+   * Swap the rendered world to another depth layer. Clears layer-bound
+   * entities, repositions the player (at `playerPos` if given, otherwise at
+   * the connecting ladder), and re-tunes camera/physics/lighting/music.
+   */
+  private applyLayer(depth: 0 | 1 | 2 | 3, playerPos?: { x: number; y: number }): void {
+    const goingDown = depth > this.state.depth;
+    this.state.depth = depth;
+
+    // Layer-bound entities don't cross with you
+    for (const z of this.zombies) z.die();
+    this.zombies = [];
+    for (const pr of this.projectiles) pr.destroy();
+    this.projectiles = [];
+    for (const p of this.pickups) p.destroy();
+    this.pickups = [];
+    for (const o of this.powerOrbs) o.container.destroy();
+    this.powerOrbs = [];
+    this.webTiles = [];
+
+    // Swap tiles
+    if (depth === 0) {
+      this.world.swapTiles(this.surfaceTiles, 'surface');
+    } else {
+      this.world.swapTiles(this.caveFor(depth).tiles, 'cave');
+    }
+
+    // Bounds
+    const wpx = this.world.w * TILE_SIZE;
+    const hpx = this.world.h * TILE_SIZE;
+    this.physics.world.setBounds(0, 0, wpx, hpx);
+    this.cameras.main.setBounds(0, 0, wpx, hpx);
+
+    // Player position
+    let pos = playerPos;
+    if (!pos) {
+      let tile: { x: number; y: number };
+      if (depth === 0) {
+        tile = this.lastEntrance ?? this.world.shopPos;
+      } else if (goingDown) {
+        tile = this.caveFor(depth).entry;
+      } else {
+        // Climbing up into a deeper-visited floor: arrive at its ladder down
+        tile = this.caveFor(depth as 1 | 2).ladderDown ?? this.caveFor(depth as 1 | 2).entry;
+      }
+      const wc = this.world.tileToWorldCenter(tile.x, tile.y);
+      pos = wc;
+    }
+    this.player.sprite.setPosition(pos.x, pos.y);
+    this.cameras.main.centerOn(pos.x, pos.y);
+    if (this.dog?.alive) this.dog.sprite.setPosition(pos.x + 16, pos.y + 8);
+
+    // Chickens are surface creatures
+    for (const c of this.chickens) c.setHidden(depth > 0);
+
+    // Surface-only decorations
+    for (const g of this.surfaceOnly) (g as Phaser.GameObjects.Graphics).setVisible(depth === 0);
+
+    this.rebuildTurrets();
+    this.lighting.invalidate();
+    music.setTheme(depth > 0 ? 'caves' : this.state.phase === 'night' || this.state.phase === 'dusk' ? 'night' : 'day');
+  }
+
+  changeDepth(depth: 0 | 1 | 2 | 3): void {
+    if (depth === this.state.depth || !this.state.running) return;
+    const goingDown = depth > this.state.depth;
+    sounds.mineBreak();
+    this.cameras.main.flash(240, 0, 0, 0);
+    this.applyLayer(depth);
+    if (depth === 0) {
+      this.showBanner('☀ THE SURFACE', 'fresh air at last');
+    } else {
+      this.showBanner(
+        goingDown ? `⛏ THE DEEP DARK — FLOOR ${depth}` : `⬆ FLOOR ${depth}`,
+        depth === 3 ? 'the Zombie King stirs below…' : goingDown ? 'stay near the light' : 'the way up is close',
+      );
+    }
+  }
+
+  private spawnCaveMonster(): void {
+    if (this.state.depth === 0) return;
+    const pt = this.world.worldToTile(this.player.x, this.player.y);
+    for (let tries = 0; tries < 40; tries++) {
+      const tx = 2 + Math.floor(Math.random() * (this.world.w - 4));
+      const ty = 2 + Math.floor(Math.random() * (this.world.h - 4));
+      const d = Math.hypot(tx - pt.x, ty - pt.y);
+      if (d < 7 || d > 22) continue;
+      if (!this.world.isWalkable(tx, ty)) continue;
+      const wc = this.world.tileToWorldCenter(tx, ty);
+      const spec = specForCave(this.state.depth, this.state.nightNumber);
+      this.zombies.push(new Zombie(this, this.world, wc.x, wc.y, spec));
+      this.effects.burst(wc.x, wc.y, 0x6a4a8a, 6, 60, 300, 0.8);
+      return;
+    }
+  }
+
   handleInteractPressed(): void {
     const p = this.world.worldToTile(this.player.x, this.player.y);
+    // Standing on a ladder / entrance?
+    const standing = this.world.getTileAt(p.x, p.y);
+    if (standing) {
+      if (standing.type === TileType.CaveEntrance && this.state.depth === 0) {
+        this.lastEntrance = { x: p.x, y: p.y };
+        this.changeDepth(1);
+        return;
+      }
+      if (standing.type === TileType.LadderDown && this.state.depth < 3) {
+        this.changeDepth((this.state.depth + 1) as 1 | 2 | 3);
+        return;
+      }
+      if (standing.type === TileType.LadderUp && this.state.depth > 0) {
+        this.changeDepth((this.state.depth - 1) as 0 | 1 | 2);
+        return;
+      }
+    }
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const tx = p.x + dx;
@@ -563,6 +734,16 @@ export class GameScene extends Phaser.Scene {
             this.effects.burst(wc.x, wc.y, 0xffd700, 20, 180, 700, 1.4);
             sounds.cake();
             this.showHint('Supply crate opened! 🎁');
+          }
+          // Underground treasure vaults pay out even better
+          if (t.type === TileType.VaultChest) {
+            for (const l of vaultLoot(Math.max(1, this.state.depth))) {
+              this.pickups.push(new Pickup(this, wc.x + (Math.random() - 0.5) * 16, wc.y + (Math.random() - 0.5) * 16, l.m, l.c));
+            }
+            this.effects.burst(wc.x, wc.y, 0xffd700, 26, 190, 800, 1.6);
+            sounds.cake();
+            this.showBanner('💎 TREASURE VAULT', 'the Deep Dark rewards the brave');
+            this.gainHeroCharge(15);
           }
         }
       } else if (res.reason === 'weak_tool') this.showHint('Need better pickaxe — craft one with C');
@@ -711,8 +892,13 @@ export class GameScene extends Phaser.Scene {
    * For touch UI: returns a brief tag identifying an interactable tile the
    * player is adjacent to (within a 1-tile radius), or null.
    */
-  getAdjacentInteractable(): 'shop' | 'door' | null {
+  getAdjacentInteractable(): 'shop' | 'door' | 'descend' | 'ascend' | null {
     const p = this.world.worldToTile(this.player.x, this.player.y);
+    const standing = this.world.getTileAt(p.x, p.y);
+    if (standing) {
+      if (standing.type === TileType.CaveEntrance || standing.type === TileType.LadderDown) return 'descend';
+      if (standing.type === TileType.LadderUp) return 'ascend';
+    }
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const t = this.world.getTileAt(p.x + dx, p.y + dy);
@@ -815,7 +1001,24 @@ export class GameScene extends Phaser.Scene {
     tickPowerUps(this.state, delta);
 
     this.cycle.tick(delta);
-    this.worldEvents.update(delta);
+    if (this.state.depth === 0) this.worldEvents.update(delta);
+
+    // Spider webs decay; player is slowed while standing in one
+    if (this.webTiles.length > 0) {
+      for (const wt of this.webTiles) {
+        wt.ttlMs -= delta;
+        if (wt.ttlMs <= 0) {
+          const t = this.world.getTileAt(wt.x, wt.y);
+          if (t && t.type === TileType.Web) this.world.damageTile(wt.x, wt.y, 999);
+        }
+      }
+      this.webTiles = this.webTiles.filter((wt) => wt.ttlMs > 0);
+    }
+    const underPlayer = this.world.getTileAt(
+      this.world.worldToTile(this.player.x, this.player.y).x,
+      this.world.worldToTile(this.player.x, this.player.y).y,
+    );
+    this.player.externalSpeedMult = underPlayer?.type === TileType.Web ? 0.55 : 1;
 
     // Slow HP regen during day (faster near campfire)
     if (this.state.phase === 'day' && this.state.playerHp < this.state.playerMaxHp) {
@@ -844,6 +1047,10 @@ export class GameScene extends Phaser.Scene {
       if (req.kind === 'boss') this.spawnBoss();
       else this.spawnZombie();
     }
+    // Ambient cave pressure while underground
+    for (const _req of this.director.updateCave(delta, this.state.depth, this.state.phase, this.zombies.length)) {
+      this.spawnCaveMonster();
+    }
 
     // Combo countdown
     if (this.combo > 0) {
@@ -851,8 +1058,9 @@ export class GameScene extends Phaser.Scene {
       if (this.comboTimerMs <= 0) this.combo = 0;
     }
 
-    // Lightning strikes during rain
-    if (this.rainActive) {
+    // Lightning strikes during rain (surface only — and rain hides underground)
+    this.rainEmitter?.setVisible(this.state.depth === 0);
+    if (this.rainActive && this.state.depth === 0) {
       this.lightningTimerMs -= delta;
       if (this.lightningTimerMs <= 0) {
         this.lightningTimerMs = 8000 + Math.random() * 8000;
@@ -904,11 +1112,13 @@ export class GameScene extends Phaser.Scene {
       this.dog.update(delta, this.player, this.zombies);
     }
 
-    // Chickens wander around. Golden chickens are caught by contact, not combat.
-    for (const c of this.chickens) {
-      c.update(delta, this.player.x, this.player.y);
-      if (c.golden && c.alive && Math.hypot(c.x - this.player.x, c.y - this.player.y) < 18) {
-        this.catchGoldenChicken(c);
+    // Chickens wander around (surface only). Golden chickens are caught by contact.
+    if (this.state.depth === 0) {
+      for (const c of this.chickens) {
+        c.update(delta, this.player.x, this.player.y);
+        if (c.golden && c.alive && Math.hypot(c.x - this.player.x, c.y - this.player.y) < 18) {
+          this.catchGoldenChicken(c);
+        }
       }
     }
     this.chickens = this.chickens.filter((c) => c.alive);
@@ -935,6 +1145,17 @@ export class GameScene extends Phaser.Scene {
       if (!pr.alive) continue;
       // Bombs resolve via fuse, not collision.
       if (pr.kind === 'bomb') continue;
+      // Enemy projectiles (bones) hurt the player, never zombies.
+      if (pr.owner === 'enemy') {
+        const d = Math.hypot(this.player.x - pr.sprite.x, this.player.y - pr.sprite.y);
+        if (d < 14) {
+          this.player.hurt(pr.damage);
+          this.effects.bloodBurst(this.player.x, this.player.y, 0x8a1a1a);
+          sounds.playerHurt();
+          pr.destroy();
+        }
+        continue;
+      }
       const hitSet = new Set<Zombie>();
       for (const z of this.zombies) {
         if (!z.alive) continue;
@@ -991,15 +1212,19 @@ export class GameScene extends Phaser.Scene {
       case 'night': alpha = 0.78; break;
       case 'dawn': alpha = 0.78 * (1 - this.cycle.phaseProgress()); break;
     }
+    const underground = this.state.depth > 0;
+    if (underground) alpha = 0.94; // caves are pitch black at any hour
     this.lighting.setDarkness(alpha);
     this.lighting.update(delta, [
-      { x: this.player.x, y: this.player.y, radius: 145 },
+      { x: this.player.x, y: this.player.y, radius: underground ? 130 : 145 },
     ]);
 
     // Warm sunset/sunrise overlay: peaks during dusk & dawn, fades to 0 at pure day/night
     let warm = 0;
-    if (this.state.phase === 'dusk') warm = 0.25 * (1 - Math.abs(0.5 - this.cycle.phaseProgress()) * 2);
-    else if (this.state.phase === 'dawn') warm = 0.25 * (1 - Math.abs(0.5 - this.cycle.phaseProgress()) * 2);
+    if (!underground) {
+      if (this.state.phase === 'dusk') warm = 0.25 * (1 - Math.abs(0.5 - this.cycle.phaseProgress()) * 2);
+      else if (this.state.phase === 'dawn') warm = 0.25 * (1 - Math.abs(0.5 - this.cycle.phaseProgress()) * 2);
+    }
     this.warmOverlay.setFillStyle(0xff7a33, warm);
 
     // Blood moon tint — only during night phase of boss nights
@@ -1008,8 +1233,8 @@ export class GameScene extends Phaser.Scene {
       this.bloodOverlay.setFillStyle(0xaa0000, bloodAlpha);
     }
 
-    // Stars visible roughly proportional to overlay darkness
-    const starAlpha = Math.min(1, alpha * 1.4);
+    // Stars visible roughly proportional to overlay darkness (never underground)
+    const starAlpha = underground ? 0 : Math.min(1, alpha * 1.4);
     for (const s of this.stars) {
       if (s.alpha !== starAlpha) s.setAlpha(starAlpha * (0.7 + 0.3 * Math.sin((this.time.now + s.x) / 500)));
     }
@@ -1155,10 +1380,10 @@ export class GameScene extends Phaser.Scene {
     const edge = Math.floor(Math.random() * 4);
     let tx = 1;
     let ty = 1;
-    if (edge === 0) { tx = Math.floor(Math.random() * WORLD_WIDTH); ty = 1; }
-    if (edge === 1) { tx = Math.floor(Math.random() * WORLD_WIDTH); ty = WORLD_HEIGHT - 2; }
-    if (edge === 2) { tx = 1; ty = Math.floor(Math.random() * WORLD_HEIGHT); }
-    if (edge === 3) { tx = WORLD_WIDTH - 2; ty = Math.floor(Math.random() * WORLD_HEIGHT); }
+    if (edge === 0) { tx = Math.floor(Math.random() * this.world.w); ty = 1; }
+    if (edge === 1) { tx = Math.floor(Math.random() * this.world.w); ty = this.world.h - 2; }
+    if (edge === 2) { tx = 1; ty = Math.floor(Math.random() * this.world.h); }
+    if (edge === 3) { tx = this.world.w - 2; ty = Math.floor(Math.random() * this.world.h); }
     return { tx, ty };
   }
 
@@ -1279,12 +1504,18 @@ export class GameScene extends Phaser.Scene {
   private updateInteractPrompt(): void {
     const p = this.world.worldToTile(this.player.x, this.player.y);
     let prompt = '';
-    outer: for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const t = this.world.getTileAt(p.x + dx, p.y + dy);
-        if (!t) continue;
-        if (t.type === TileType.ShopNPC) { prompt = 'E — open Shop'; break outer; }
-        if (t.type === TileType.DoorWood) { prompt = 'E — open/close door'; break outer; }
+    const standing = this.world.getTileAt(p.x, p.y);
+    if (standing?.type === TileType.CaveEntrance) prompt = 'E — descend into the Deep Dark';
+    else if (standing?.type === TileType.LadderDown) prompt = 'E — climb deeper';
+    else if (standing?.type === TileType.LadderUp) prompt = 'E — climb up';
+    if (!prompt) {
+      outer: for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const t = this.world.getTileAt(p.x + dx, p.y + dy);
+          if (!t) continue;
+          if (t.type === TileType.ShopNPC) { prompt = 'E — open Shop'; break outer; }
+          if (t.type === TileType.DoorWood) { prompt = 'E — open/close door'; break outer; }
+        }
       }
     }
     if (prompt) {
@@ -1397,13 +1628,16 @@ export class GameScene extends Phaser.Scene {
   saveRun(hintText = 'Game saved'): void {
     const ok = SaveLoad.save({
       state: this.state,
-      tiles: this.world.tiles,
+      tiles: this.surfaceTiles,
       playerSpawn: this.world.playerSpawn,
       shopPos: this.world.shopPos,
       playerWorldPos: { x: this.player.x, y: this.player.y },
       dog: this.dog
         ? { alive: this.dog.alive, hp: this.dog.hp, level: this.dog.level, kills: this.dog.kills, x: this.dog.x, y: this.dog.y }
         : null,
+      caves: this.caves,
+      depth: this.state.depth,
+      runSeed: this.runSeed,
     });
     if (ok) this.showHint(`💾 ${hintText}`);
   }

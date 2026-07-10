@@ -1,4 +1,3 @@
-import { WORLD_HEIGHT, WORLD_WIDTH } from '../config';
 import { World } from '../world/World';
 import { TileType, TILE_SPECS } from '../world/tileTypes';
 
@@ -23,8 +22,8 @@ const DIRS: Step[] = [
 export function bfsNextStep(world: World, start: Step, goal: Step, allowBreakWeakWalls: boolean): Step | null {
   if (start.x === goal.x && start.y === goal.y) return null;
 
-  const w = WORLD_WIDTH;
-  const h = WORLD_HEIGHT;
+  const w = world.w;
+  const h = world.h;
   const maxSearch = 400; // cap for perf
   const visited = new Uint8Array(w * h);
   const parent = new Int32Array(w * h).fill(-1);

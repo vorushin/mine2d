@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from '../config';
+import { TILE_SIZE } from '../config';
 import { TileType, TILE_SPECS, MaterialId, isBreakable, isPlaceableGround } from './tileTypes';
 import { generateWorld, Tile, GeneratedWorld } from './generate';
 import { TEX } from '../gfx/textures';
@@ -35,14 +35,33 @@ const TEXTURE_FOR: Partial<Record<TileType, string>> = {
   [TileType.Pumpkin]: TEX.pumpkin,
   [TileType.Volcano]: TEX.volcano,
   [TileType.Bridge]: TEX.bridge,
+  [TileType.CaveRock]: TEX.cave_rock,
+  [TileType.CrystalOre]: TEX.crystal_ore,
+  [TileType.ObsidianOre]: TEX.obsidian_ore,
+  [TileType.CaveEntrance]: TEX.cave_entrance,
+  [TileType.LadderUp]: TEX.ladder_up,
+  [TileType.LadderDown]: TEX.ladder_down,
+  [TileType.VaultChest]: TEX.vault_chest,
+  [TileType.ThroneGate]: TEX.throne_gate,
+  [TileType.WallObsidian]: TEX.wall_obsidian,
+  [TileType.Gravestone]: TEX.gravestone,
+  [TileType.Crypt]: TEX.crypt,
+  [TileType.Web]: TEX.web,
 };
 
+export type WorldEnv = 'surface' | 'cave';
+
 export class World {
-  readonly tiles: Tile[][];
+  tiles: Tile[][];
+  /** Active layer dimensions in tiles (surface 100×100, caves are smaller). */
+  w: number;
+  h: number;
+  env: WorldEnv = 'surface';
   readonly playerSpawn: { x: number; y: number };
   readonly shopPos: { x: number; y: number };
 
   private scene: Phaser.Scene;
+  private groundImages: Phaser.GameObjects.Image[] = [];
   private tileObjects: Map<number, Phaser.GameObjects.GameObject> = new Map();
   private hpBars: Map<number, Phaser.GameObjects.Rectangle> = new Map();
   private damageOverlays: Map<number, Phaser.GameObjects.Image> = new Map();
@@ -52,13 +71,15 @@ export class World {
     this.scene = scene;
     const gen: GeneratedWorld = typeof source === 'number' ? generateWorld(source) : source;
     this.tiles = gen.tiles;
+    this.h = gen.tiles.length;
+    this.w = gen.tiles[0]?.length ?? 0;
     this.playerSpawn = gen.playerSpawn;
     this.shopPos = gen.shopPos;
   }
 
   drawAll(): void {
-    for (let y = 0; y < WORLD_HEIGHT; y++) {
-      for (let x = 0; x < WORLD_WIDTH; x++) {
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
         const t = this.tiles[y][x];
         const texKey = this.groundTextureFor(t.type, x, y);
         const ground = this.scene.add.image(
@@ -67,6 +88,7 @@ export class World {
           texKey,
         );
         ground.setDepth(0);
+        this.groundImages.push(ground);
         if (t.type === TileType.Water) {
           this.scene.tweens.add({
             targets: ground,
@@ -81,6 +103,49 @@ export class World {
     }
   }
 
+  /**
+   * Swap the active tile layer (surface <-> cave floors). Destroys every
+   * display object of the old layer and redraws the new one.
+   */
+  swapTiles(tiles: Tile[][], env: WorldEnv): void {
+    this.teardownDisplay();
+    this.tiles = tiles;
+    this.h = tiles.length;
+    this.w = tiles[0]?.length ?? 0;
+    this.env = env;
+    this.drawAll();
+  }
+
+  private teardownDisplay(): void {
+    for (const img of this.groundImages) {
+      this.scene.tweens.killTweensOf(img);
+      img.destroy();
+    }
+    this.groundImages = [];
+    for (const obj of this.tileObjects.values()) {
+      this.destroyObjectExtras(obj);
+      this.scene.tweens.killTweensOf(obj);
+      obj.destroy();
+    }
+    this.tileObjects.clear();
+    for (const bar of this.hpBars.values()) bar.destroy();
+    this.hpBars.clear();
+    for (const overlay of this.damageOverlays.values()) overlay.destroy();
+    this.damageOverlays.clear();
+  }
+
+  private destroyObjectExtras(obj: Phaser.GameObjects.GameObject): void {
+    const glow = obj.getData('glow') as Phaser.GameObjects.Arc | undefined;
+    if (glow) {
+      this.scene.tweens.killTweensOf(glow);
+      glow.destroy();
+    }
+    const shadow = obj.getData('shadow') as Phaser.GameObjects.Ellipse | undefined;
+    if (shadow) shadow.destroy();
+    const smoke = obj.getData('smoke') as Phaser.GameObjects.Particles.ParticleEmitter | undefined;
+    if (smoke) smoke.destroy();
+  }
+
   private needsObject(type: TileType): boolean {
     return (
       type !== TileType.Grass &&
@@ -88,12 +153,13 @@ export class World {
       type !== TileType.Water &&
       type !== TileType.Sand &&
       type !== TileType.FlowerField &&
-      type !== TileType.Crater
+      type !== TileType.Crater &&
+      type !== TileType.CaveFloor
     );
   }
 
   private key(x: number, y: number): number {
-    return y * WORLD_WIDTH + x;
+    return y * this.w + x;
   }
 
   private groundTextureFor(type: TileType, x: number, y: number): string {
@@ -104,6 +170,7 @@ export class World {
     if (type === TileType.FlowerField) return TEX.flower_field;
     if (type === TileType.Crater) return TEX.crater;
     if (type === TileType.Lava) return TEX.lava;
+    if (this.env === 'cave') return h % 3 === 0 ? TEX.cave_floor_2 : TEX.cave_floor;
     if (h % 5 === 0) return TEX.grass_tuft_3;
     if (h % 3 === 0) return TEX.grass_tuft_2;
     return TEX.grass_tuft;
@@ -259,7 +326,11 @@ export class World {
   }
 
   private makeObjectShadow(type: TileType, cx: number, cy: number): Phaser.GameObjects.Ellipse | null {
-    if (type === TileType.Torch || type === TileType.Lava || type === TileType.Bridge || type === TileType.SpikeTrap) return null;
+    if (
+      type === TileType.Torch || type === TileType.Lava || type === TileType.Bridge || type === TileType.SpikeTrap ||
+      type === TileType.CaveEntrance || type === TileType.LadderUp || type === TileType.LadderDown ||
+      type === TileType.Web || type === TileType.CaveRock || type === TileType.ThroneGate
+    ) return null;
     let w = 22;
     let h = 6;
     let y = cy + 10;
@@ -280,7 +351,7 @@ export class World {
   }
 
   getTileAt(x: number, y: number): Tile | null {
-    if (x < 0 || y < 0 || x >= WORLD_WIDTH || y >= WORLD_HEIGHT) return null;
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return null;
     return this.tiles[y][x];
   }
 
@@ -426,12 +497,8 @@ export class World {
     const key = this.key(x, y);
     const obj = this.tileObjects.get(key);
     if (obj) {
-      const glow = obj.getData('glow') as Phaser.GameObjects.Arc | undefined;
-      if (glow) glow.destroy();
-      const shadow = obj.getData('shadow') as Phaser.GameObjects.Ellipse | undefined;
-      if (shadow) shadow.destroy();
-      const smoke = obj.getData('smoke') as Phaser.GameObjects.Particles.ParticleEmitter | undefined;
-      if (smoke) smoke.destroy();
+      this.destroyObjectExtras(obj);
+      this.scene.tweens.killTweensOf(obj);
       obj.destroy();
       this.tileObjects.delete(key);
     }
@@ -447,8 +514,12 @@ export class World {
     }
     const t = this.tiles[y][x];
     this.events.emit('tile_broken', x, y, t.type);
-    // Bridges revert to water (the water ground image is still there beneath them)
-    t.type = t.type === TileType.Bridge ? TileType.Water : TileType.Grass;
+    // Bridges revert to water (the water ground image is still there beneath
+    // them); underground everything breaks down to cave floor.
+    t.type =
+      t.type === TileType.Bridge ? TileType.Water :
+      this.env === 'cave' ? TileType.CaveFloor :
+      TileType.Grass;
     t.hp = 0;
   }
 
@@ -499,6 +570,7 @@ export class World {
       texKey,
     );
     ground.setDepth(0.4);
+    this.groundImages.push(ground);
   }
 
   /** Spawn the object layer for a tile from outside (used by world events). */
@@ -507,8 +579,8 @@ export class World {
   }
 
   forEachTileOfType(type: TileType, visitor: (x: number, y: number) => void): void {
-    for (let y = 0; y < WORLD_HEIGHT; y++) {
-      for (let x = 0; x < WORLD_WIDTH; x++) {
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
         if (this.tiles[y][x].type === type) visitor(x, y);
       }
     }
@@ -525,10 +597,15 @@ function depthFor(type: TileType): number {
     case TileType.TurretFlame:
     case TileType.SupplyCrate:
     case TileType.ShopNPC:
+    case TileType.VaultChest:
       return 5;
     case TileType.Lava:
       return 1;
     case TileType.SpikeTrap:
+    case TileType.CaveEntrance:
+    case TileType.LadderUp:
+    case TileType.LadderDown:
+    case TileType.Web:
       return 2;
     default:
       return 3;

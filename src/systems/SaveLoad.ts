@@ -1,5 +1,6 @@
 import { DailyQuest, DailyQuestKind, GameState, RunStats, makeGameState } from '../state/GameState';
 import { Tile } from '../world/generate';
+import { GeneratedCave } from '../world/generateCave';
 import { TileType, TILE_SPECS, MaterialId } from '../world/tileTypes';
 import { WORLD_HEIGHT, WORLD_WIDTH } from '../config';
 
@@ -17,7 +18,7 @@ import { WORLD_HEIGHT, WORLD_WIDTH } from '../config';
  */
 
 const SAVE_KEY = 'mine2d:save_v1';
-export const CURRENT_SAVE_VERSION = 1;
+export const CURRENT_SAVE_VERSION = 2; // v2: cave layers + depth + runSeed
 
 // --- Tile name ↔ enum mapping (stable across refactors) --------------------
 
@@ -51,6 +52,19 @@ const TILE_NAMES: Record<TileType, string> = {
   [TileType.WallReinforced]: 'wall_reinforced',
   [TileType.TurretFlame]: 'turret_flame',
   [TileType.SpikeTrap]: 'spike_trap',
+  [TileType.CaveRock]: 'cave_rock',
+  [TileType.CaveFloor]: 'cave_floor',
+  [TileType.CrystalOre]: 'crystal_ore',
+  [TileType.ObsidianOre]: 'obsidian_ore',
+  [TileType.CaveEntrance]: 'cave_entrance',
+  [TileType.LadderUp]: 'ladder_up',
+  [TileType.LadderDown]: 'ladder_down',
+  [TileType.VaultChest]: 'vault_chest',
+  [TileType.ThroneGate]: 'throne_gate',
+  [TileType.WallObsidian]: 'wall_obsidian',
+  [TileType.Gravestone]: 'gravestone',
+  [TileType.Crypt]: 'crypt',
+  [TileType.Web]: 'web',
 };
 
 const NAME_TO_TILE: Record<string, TileType> = Object.fromEntries(
@@ -103,6 +117,20 @@ export interface SaveData {
   stats: RunStats;
   dailyQuest?: DailyQuest | null;
   dog: { alive: boolean; hp: number; level: number; kills: number; x: number; y: number } | null;
+  /** v2+: the Deep Dark — visited cave floors (index 0 = floor 1), current depth, run seed. */
+  caves?: (SavedCave | null)[];
+  depth?: number;
+  runSeed?: number;
+}
+
+interface SavedCave {
+  width: number;
+  height: number;
+  tiles: { t: string; h: number }[];
+  entry: { x: number; y: number };
+  ladderDown: { x: number; y: number } | null;
+  throneGate: { x: number; y: number } | null;
+  throneCenter: { x: number; y: number } | null;
 }
 
 export interface SaveSnapshot {
@@ -112,6 +140,9 @@ export interface SaveSnapshot {
   shopPos: { x: number; y: number };
   playerWorldPos: { x: number; y: number };
   dog: { alive: boolean; hp: number; level: number; kills: number; x: number; y: number } | null;
+  caves: (GeneratedCave | null)[];
+  depth: 0 | 1 | 2 | 3;
+  runSeed: number;
 }
 
 export const SaveLoad = {
@@ -159,15 +190,33 @@ export const SaveLoad = {
   },
 };
 
-function serialize(snap: SaveSnapshot): SaveData {
+function flattenTiles(tiles: Tile[][]): { t: string; h: number }[] {
   const flat: { t: string; h: number }[] = [];
-  for (let y = 0; y < WORLD_HEIGHT; y++) {
-    for (let x = 0; x < WORLD_WIDTH; x++) {
-      const tile = snap.tiles[y][x];
-      flat.push({ t: tileNameFor(tile.type), h: tile.hp });
-    }
+  for (const row of tiles) {
+    for (const tile of row) flat.push({ t: tileNameFor(tile.type), h: tile.hp });
   }
+  return flat;
+}
+
+function serialize(snap: SaveSnapshot): SaveData {
+  const flat = flattenTiles(snap.tiles);
+  const caves: (SavedCave | null)[] = snap.caves.map((cave) =>
+    cave
+      ? {
+          width: cave.tiles[0]?.length ?? 0,
+          height: cave.tiles.length,
+          tiles: flattenTiles(cave.tiles),
+          entry: { ...cave.entry },
+          ladderDown: cave.ladderDown ? { ...cave.ladderDown } : null,
+          throneGate: cave.throneGate ? { ...cave.throneGate } : null,
+          throneCenter: cave.throneCenter ? { ...cave.throneCenter } : null,
+        }
+      : null,
+  );
   return {
+    caves,
+    depth: snap.depth,
+    runSeed: snap.runSeed,
     version: CURRENT_SAVE_VERSION,
     timestamp: Date.now(),
     world: {
@@ -223,6 +272,7 @@ const VALID_PHASES = ['day', 'dusk', 'night', 'dawn'] as const;
 const VALID_MATERIALS: readonly MaterialId[] = [
   'wood', 'stone', 'iron', 'gold', 'arrow', 'bullet', 'lava',
   'bomb', 'wallReinforced', 'turretFlame',
+  'crystal', 'obsidian', 'soul',
 ];
 const VALID_QUEST_KINDS: readonly DailyQuestKind[] = ['mine', 'build', 'kill'];
 
@@ -315,8 +365,8 @@ function deserialize(raw: unknown): SaveSnapshot | null {
   const state: GameState = makeGameState();
   state.playerMaxHp = maxHp;
   state.playerHp = Math.max(0, Math.min(maxHp, numberOr(p.hp, maxHp)));
-  state.pickaxeTier = Math.max(0, Math.min(2, intOr(p.pickaxeTier, 0))) as 0 | 1 | 2;
-  state.swordTier = Math.max(0, Math.min(1, intOr(p.swordTier, 0))) as 0 | 1;
+  state.pickaxeTier = Math.max(0, Math.min(3, intOr(p.pickaxeTier, 0))) as 0 | 1 | 2 | 3;
+  state.swordTier = Math.max(0, Math.min(2, intOr(p.swordTier, 0))) as 0 | 1 | 2;
   state.hasBow = boolOr(p.hasBow, false);
   state.hasPistol = boolOr(p.hasPistol, false);
   state.hasHammer = boolOr(p.hasHammer, false);
@@ -362,5 +412,46 @@ function deserialize(raw: unknown): SaveSnapshot | null {
     };
   }
 
-  return { state, tiles, playerSpawn, shopPos, playerWorldPos, dog };
+  // Caves (v2+). Missing/corrupt caves fall back to unvisited.
+  const caves: (GeneratedCave | null)[] = [null, null, null];
+  const rawCaves = Array.isArray(data.caves) ? data.caves : [];
+  for (let i = 0; i < 3; i++) {
+    const rc = rawCaves[i];
+    if (!rc || typeof rc !== 'object') continue;
+    const c = rc as Partial<SavedCave>;
+    const cw = Math.max(1, intOr(c.width, 0));
+    const ch = Math.max(1, intOr(c.height, 0));
+    const cFlat = Array.isArray(c.tiles) ? (c.tiles as unknown[]) : [];
+    if (cw < 8 || ch < 8 || cFlat.length !== cw * ch) continue;
+    const caveTiles: Tile[][] = [];
+    for (let y = 0; y < ch; y++) {
+      const row: Tile[] = [];
+      for (let x = 0; x < cw; x++) {
+        const cell = cFlat[y * cw + x] as { t?: unknown; h?: unknown } | undefined;
+        const tileType = cell ? tileFromName(cell.t) : TileType.CaveRock;
+        row.push({ type: tileType, hp: numberOr(cell?.h, TILE_SPECS[tileType]?.baseHp ?? 0) });
+      }
+      caveTiles.push(row);
+    }
+    const pt = (v: unknown): { x: number; y: number } | null => {
+      if (!v || typeof v !== 'object') return null;
+      const o = v as { x?: unknown; y?: unknown };
+      const x = intOr(o.x, -1);
+      const y = intOr(o.y, -1);
+      return x >= 0 && y >= 0 && x < cw && y < ch ? { x, y } : null;
+    };
+    caves[i] = {
+      tiles: caveTiles,
+      entry: pt(c.entry) ?? { x: Math.floor(cw / 2), y: Math.floor(ch / 2) },
+      ladderDown: pt(c.ladderDown),
+      throneGate: pt(c.throneGate),
+      throneCenter: pt(c.throneCenter),
+    };
+  }
+
+  let depth = Math.max(0, Math.min(3, intOr(data.depth, 0))) as 0 | 1 | 2 | 3;
+  if (depth > 0 && !caves[depth - 1]) depth = 0; // never load into a missing layer
+  const runSeed = intOr(data.runSeed, Math.floor(Math.random() * 2 ** 31));
+
+  return { state, tiles, playerSpawn, shopPos, playerWorldPos, dog, caves, depth, runSeed };
 }

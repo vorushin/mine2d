@@ -13,6 +13,8 @@ export class Player {
   readonly state: GameState;
   readonly world: World;
   facing: { x: number; y: number } = { x: 0, y: 1 };
+  /** Terrain slow (spider webs); set by GameScene each frame. */
+  externalSpeedMult = 1;
   private attackCooldownMs = 0;
   private walkPhase = 0;
   private dashMs = 0;
@@ -65,7 +67,7 @@ export class Player {
     if (!this.state.running) return;
     if (this.dashMs > 0) this.dashMs -= deltaMs;
     if (this.dashCooldownMs > 0) this.dashCooldownMs -= deltaMs;
-    const speedMult = (this.dashMs > 0 ? 2.2 : 1) * speedMultiplierForState(this.state);
+    const speedMult = (this.dashMs > 0 ? 2.2 : 1) * speedMultiplierForState(this.state) * this.externalSpeedMult;
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(moveX * PLAYER_SPEED * speedMult, moveY * PLAYER_SPEED * speedMult);
 
@@ -150,7 +152,8 @@ export class Player {
   }
 
   meleeAttackDamage(): number {
-    return this.state.swordTier === 0 ? 6 : 14;
+    const byTier = [6, 14, 24]; // wood, iron, crystal
+    return byTier[Math.min(this.state.swordTier, byTier.length - 1)];
   }
 
   attackCooldown(): number { return this.attackCooldownMs; }

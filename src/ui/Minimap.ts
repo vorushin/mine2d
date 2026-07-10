@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { WORLD_WIDTH, WORLD_HEIGHT, TILE_SIZE } from '../config';
 import { GameScene } from '../scenes/GameScene';
 import { TileType } from '../world/tileTypes';
 
@@ -36,12 +35,14 @@ export class Minimap {
   }
 
   private paintStatic(): void {
-    const cell = this.mapSize / WORLD_WIDTH;
+    const world = this.gameScene.world;
+    const cell = this.mapSize / world.w;
+    const inCave = world.env === 'cave';
     this.staticLayer.clear();
-    for (let y = 0; y < WORLD_HEIGHT; y++) {
-      for (let x = 0; x < WORLD_WIDTH; x++) {
-        const t = this.gameScene.world.tiles[y][x];
-        let c = 0x3a7a3a; // grass
+    for (let y = 0; y < world.h; y++) {
+      for (let x = 0; x < world.w; x++) {
+        const t = world.tiles[y][x];
+        let c = inCave ? 0x2e2e3a : 0x3a7a3a; // cave floor / grass
         if (t.type === TileType.Dirt) c = 0x6a4a2b;
         else if (t.type === TileType.Sand) c = 0xd8c779;
         else if (t.type === TileType.Water) c = 0x3e6db0;
@@ -59,6 +60,16 @@ export class Minimap {
         else if (t.type === TileType.Bridge) c = 0x9c6a3f;
         else if (t.type === TileType.TurretFlame) c = 0xff8030;
         else if (t.type === TileType.SpikeTrap) c = 0xc7ccd4;
+        else if (t.type === TileType.CaveRock) c = 0x4a4a58;
+        else if (t.type === TileType.CrystalOre) c = 0x7fe7ff;
+        else if (t.type === TileType.ObsidianOre) c = 0x453a66;
+        else if (t.type === TileType.CaveEntrance || t.type === TileType.LadderDown) c = 0x0a0a12;
+        else if (t.type === TileType.LadderUp) c = 0xa8845a;
+        else if (t.type === TileType.VaultChest) c = 0xd9a44a;
+        else if (t.type === TileType.ThroneGate) c = 0x8a3aaa;
+        else if (t.type === TileType.WallObsidian) c = 0x3a3050;
+        else if (t.type === TileType.Gravestone) c = 0x9a9aa8;
+        else if (t.type === TileType.Crypt) c = 0xd8d0c0;
         this.staticLayer.fillStyle(c, 1);
         this.staticLayer.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
       }
@@ -68,19 +79,21 @@ export class Minimap {
   private repaintTimer = 0;
 
   update(): void {
-    const cell = this.mapSize / WORLD_WIDTH;
+    const world = this.gameScene.world;
+    const cell = this.mapSize / world.w;
     this.dynamicLayer.clear();
 
-    // Repaint static layer every half-second (handles meteor craters, lava spread)
+    // Repaint static layer every half-second (handles meteor craters, lava
+    // spread, and cave layer switches)
     this.repaintTimer += 1;
     if (this.repaintTimer >= 30) {
       this.repaintTimer = 0;
       this.paintStatic();
     }
 
-    // Shop (yellow star-ish)
+    // Shop (yellow star-ish) — surface only
     const shop = this.gameScene.world.shopPos;
-    if (shop) {
+    if (shop && world.env === 'surface') {
       this.dynamicLayer.fillStyle(0xffd700, 1);
       this.dynamicLayer.fillRect(shop.x * cell - 2, shop.y * cell - 2, 4, 4);
     }
@@ -138,5 +151,3 @@ export class Minimap {
     this.container.destroy();
   }
 }
-
-void TILE_SIZE;

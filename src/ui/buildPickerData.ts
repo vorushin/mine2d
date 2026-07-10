@@ -12,6 +12,7 @@ export const BUILD_PICKER_SLOTS: readonly number[] = [
   findIndex('Wall S'),
   findIndex('Wall I'),
   findIndex('Wall R'),
+  findIndex('Wall O'),
   findIndex('Door'),
   findIndex('Torch'),
   findIndex('Trap'),
@@ -38,6 +39,7 @@ function materialShortName(material: string): string {
     case 'lava': return 'Lava';
     case 'wallReinforced': return 'R-Wall';
     case 'turretFlame': return 'F-Turret';
+    case 'obsidian': return 'Obs';
     default: return material;
   }
 }

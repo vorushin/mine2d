@@ -237,6 +237,32 @@ export function generateWorld(seed: number): GeneratedWorld {
     }
   }
 
+  // Cave entrances into the Deep Dark: one guaranteed near spawn, plus a
+  // couple more scattered in the rocky biome.
+  let entrancesPlaced = 0;
+  for (let tries = 0; tries < 120 && entrancesPlaced < 1; tries++) {
+    const angle = rand() * Math.PI * 2;
+    const dist = 8 + rand() * 12;
+    const cx = Math.floor(spawn.x + Math.cos(angle) * dist);
+    const cy = Math.floor(spawn.y + Math.sin(angle) * dist);
+    if (!inBounds(cx, cy)) continue;
+    const t = tiles[cy][cx];
+    if (t.type === TileType.Grass || t.type === TileType.Dirt) {
+      tiles[cy][cx] = makeTile(TileType.CaveEntrance);
+      entrancesPlaced++;
+    }
+  }
+  for (let tries = 0; tries < 200 && entrancesPlaced < 3; tries++) {
+    const cx = 4 + Math.floor(rand() * (w - 8));
+    const cy = 4 + Math.floor(rand() * (h - 8));
+    const nb = biomeNoise(cx / 14, cy / 14);
+    const t = tiles[cy][cx];
+    if (nb > 0.7 && (t.type === TileType.Grass || t.type === TileType.Dirt || t.type === TileType.Stone)) {
+      tiles[cy][cx] = makeTile(TileType.CaveEntrance);
+      entrancesPlaced++;
+    }
+  }
+
   // Place a starter supply crate near spawn (not on top of spawn)
   for (let tries = 0; tries < 40; tries++) {
     const angle = rand() * Math.PI * 2;

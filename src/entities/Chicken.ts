@@ -34,8 +34,18 @@ export class Chicken {
     }
   }
 
+  /** Chickens stay on the surface — hidden & frozen while the player is underground. */
+  setHidden(hidden: boolean): void {
+    this.sprite.setVisible(!hidden);
+    this.shadow.setVisible(!hidden);
+  }
+
+  get hidden(): boolean {
+    return !this.sprite.visible;
+  }
+
   update(deltaMs: number, playerX: number, playerY: number): void {
-    if (!this.alive) return;
+    if (!this.alive || this.hidden) return;
 
     this.clucksMs -= deltaMs;
     if (this.clucksMs <= 0) {

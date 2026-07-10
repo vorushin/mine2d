@@ -3,8 +3,8 @@ import { World } from '../world/World';
 import { BOMB_FUSE_MS, BOMB_THROW_SPEED, PROJECTILE_SPEED, TILE_SIZE } from '../config';
 import { TEX } from '../gfx/textures';
 
-export type ProjectileOwner = 'player' | 'turret';
-export type ProjectileKind = 'arrow' | 'bullet' | 'flame' | 'bomb';
+export type ProjectileOwner = 'player' | 'turret' | 'enemy';
+export type ProjectileKind = 'arrow' | 'bullet' | 'flame' | 'bomb' | 'bone';
 
 export interface ProjectileSpawn {
   x: number;
@@ -47,6 +47,7 @@ export class Projectile {
       spawn.kind === 'arrow' ? TEX.arrow :
       spawn.kind === 'bullet' ? TEX.bullet :
       spawn.kind === 'flame' ? TEX.flame :
+      spawn.kind === 'bone' ? TEX.bone :
       TEX.bomb;
     this.sprite = scene.add.image(spawn.x, spawn.y, tex);
     this.sprite.setDepth(12);
@@ -54,6 +55,7 @@ export class Projectile {
     const speed =
       spawn.kind === 'flame' ? PROJECTILE_SPEED * 0.85 :
       spawn.kind === 'bomb' ? BOMB_THROW_SPEED :
+      spawn.kind === 'bone' ? PROJECTILE_SPEED * 0.6 :
       PROJECTILE_SPEED;
     this.vx = (spawn.dx / mag) * speed;
     this.vy = (spawn.dy / mag) * speed;
@@ -83,6 +85,8 @@ export class Projectile {
       this.vx *= Math.pow(0.88, deltaMs / 1000);
       this.vy *= Math.pow(0.88, deltaMs / 1000);
       this.sprite.rotation += (deltaMs / 1000) * 6;
+    } else if (this.kind === 'bone') {
+      this.sprite.rotation += (deltaMs / 1000) * 9; // tumbling bone
     }
 
     this.ttlMs -= deltaMs;

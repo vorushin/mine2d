@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 
-export type InteractTag = 'shop' | 'bench' | 'door';
+export type InteractTag = 'shop' | 'bench' | 'door' | 'descend' | 'ascend' | 'gate';
 
 const ICONS: Record<InteractTag, string> = {
   shop: '💰',
   bench: '⚒',
   door: '🚪',
+  descend: '⬇️',
+  ascend: '⬆️',
+  gate: '👑',
 };
 
 /**

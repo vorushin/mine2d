@@ -12,8 +12,8 @@ export interface Recipe {
 
 export type CraftAction =
   | { kind: 'material'; material: MaterialId; count: number }
-  | { kind: 'pickaxe_upgrade'; toTier: 1 | 2 }
-  | { kind: 'sword_upgrade'; toTier: 1 }
+  | { kind: 'pickaxe_upgrade'; toTier: 1 | 2 | 3 }
+  | { kind: 'sword_upgrade'; toTier: 1 | 2 }
   | { kind: 'unlock_bow' }
   | { kind: 'unlock_pistol' }
   | { kind: 'unlock_hammer' };
@@ -36,6 +36,18 @@ export const RECIPES: Recipe[] = [
     label: 'Iron Sword',
     inputs: [{ material: 'wood', count: 1 }, { material: 'iron', count: 3 }],
     produces: { kind: 'sword_upgrade', toTier: 1 },
+  },
+  {
+    id: 'crystal_pickaxe',
+    label: 'Crystal Pickaxe',
+    inputs: [{ material: 'crystal', count: 3 }, { material: 'iron', count: 2 }],
+    produces: { kind: 'pickaxe_upgrade', toTier: 3 },
+  },
+  {
+    id: 'crystal_sword',
+    label: 'Crystal Sword',
+    inputs: [{ material: 'crystal', count: 2 }, { material: 'iron', count: 1 }],
+    produces: { kind: 'sword_upgrade', toTier: 2 },
   },
   {
     id: 'bow',

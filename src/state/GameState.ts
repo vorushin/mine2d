@@ -67,8 +67,8 @@ export interface GameState {
   playerHp: number;
   playerMaxHp: number;
   inventory: Inventory;
-  pickaxeTier: 0 | 1 | 2;
-  swordTier: 0 | 1;
+  pickaxeTier: 0 | 1 | 2 | 3;
+  swordTier: 0 | 1 | 2;
   hasBow: boolean;
   hasPistol: boolean;
   hasHammer: boolean;

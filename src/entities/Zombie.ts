@@ -2,10 +2,12 @@ import Phaser from 'phaser';
 import { World } from '../world/World';
 import { Player } from './Player';
 import { TILE_SIZE, COLORS, ZOMBIE_BASE_HP, ZOMBIE_BASE_DAMAGE, ZOMBIE_BASE_SPEED, BRUTE_CHANCE_BY_NIGHT } from '../config';
-import { TileType, TILE_SPECS } from '../world/tileTypes';
+import { TileType, TILE_SPECS, isPlaceableGround } from '../world/tileTypes';
 import { bfsNextStep } from '../systems/Pathfinding';
 
-export type ZombieVariant = 'normal' | 'fast' | 'armored' | 'brute' | 'goblin' | 'boss';
+export type ZombieVariant =
+  | 'normal' | 'fast' | 'armored' | 'brute' | 'goblin' | 'boss'
+  | 'bat' | 'spider' | 'spiderling' | 'skeleton' | 'king';
 
 export function bruteChanceForNight(night: number): number {
   const arr = BRUTE_CHANCE_BY_NIGHT;
@@ -20,6 +22,66 @@ export interface ZombieSpec {
   damage: number;
   speed: number;
   tint: number;
+  /** Wobbly flight steering (bats). */
+  erratic?: boolean;
+  /** Never attacks walls — navigates around them only (bats). */
+  noWallAttack?: boolean;
+  /** Leaves slowing Web tiles while moving (spiders, the Spider Queen). */
+  layWebs?: boolean;
+  /** Arrows/bullets/flame deal only 1 damage (the Stone Golem). */
+  projectileResistant?: boolean;
+  /** Ranged attacker: stands off and throws bones (skeleton miners). */
+  rangedRangePx?: number;
+  rangedFireMs?: number;
+}
+
+/** Ambient cave monsters — tougher on deeper floors and later nights. */
+export function specForCave(floor: number, night: number, rand: () => number = Math.random): ZombieSpec {
+  const scale = 1 + Math.max(0, night - 1) * 0.05 + Math.max(0, floor - 1) * 0.3;
+  const roll = rand();
+  const skeletonChance = floor >= 3 ? 0.45 : floor >= 2 ? 0.3 : 0;
+  if (roll < skeletonChance) {
+    return {
+      variant: 'skeleton',
+      hp: 16 * scale,
+      damage: 7 * scale,
+      speed: 42,
+      tint: 0xffffff,
+      rangedRangePx: TILE_SIZE * 5.5,
+      rangedFireMs: 1900,
+    };
+  }
+  if (roll < skeletonChance + (1 - skeletonChance) * 0.45) {
+    return {
+      variant: 'bat',
+      hp: 8 * scale,
+      damage: 4 * scale,
+      speed: 78,
+      tint: 0xffffff,
+      erratic: true,
+      noWallAttack: true,
+    };
+  }
+  return {
+    variant: 'spider',
+    hp: 13 * scale,
+    damage: 5 * scale,
+    speed: 58,
+    tint: 0xffffff,
+    layWebs: true,
+  };
+}
+
+/** Tiny fast spiders birthed by the Spider Queen. */
+export function specForSpiderling(night: number): ZombieSpec {
+  const scale = 1 + Math.max(0, night - 1) * 0.04;
+  return {
+    variant: 'spiderling',
+    hp: 6 * scale,
+    damage: 3 * scale,
+    speed: 72,
+    tint: 0xffffff,
+  };
 }
 
 export function specForNight(night: number): ZombieSpec {
@@ -100,6 +162,176 @@ export function generateZombieTextures(scene: Phaser.Scene): void {
   drawBruteZombie(scene);
   drawGoblin(scene);
   drawBossZombie(scene);
+  drawBat(scene);
+  drawSpider(scene);
+  drawSpiderling(scene);
+  drawSkeleton(scene);
+  drawKing(scene);
+}
+
+// --- Bat: purple cave flyer, wide wings, tiny fangs -------------------------
+
+function drawBat(scene: Phaser.Scene): void {
+  const key = 'zombie_bat';
+  if (scene.textures.exists(key)) return;
+  const g = scene.add.graphics();
+  const wing = 0x5a4a8a;
+  const wingDark = 0x3e3260;
+  const body = 0x745fae;
+  // Wings
+  g.fillStyle(wing, 1);
+  g.fillRect(0, 4, 7, 6); g.fillRect(13, 4, 7, 6);
+  g.fillRect(1, 2, 4, 3); g.fillRect(15, 2, 4, 3);
+  g.fillStyle(wingDark, 1);
+  g.fillRect(0, 9, 7, 1); g.fillRect(13, 9, 7, 1);
+  g.fillRect(2, 4, 1, 5); g.fillRect(17, 4, 1, 5);
+  // Body
+  g.fillStyle(body, 1); g.fillRect(7, 3, 6, 8);
+  g.fillStyle(0x8a75c4, 1); g.fillRect(7, 3, 6, 2);
+  // Ears
+  g.fillStyle(body, 1); g.fillRect(7, 1, 2, 2); g.fillRect(11, 1, 2, 2);
+  // Eyes
+  g.fillStyle(0xff4040, 1); g.fillRect(8, 5, 1, 2); g.fillRect(11, 5, 1, 2);
+  // Fangs
+  g.fillStyle(0xffffff, 1); g.fillRect(8, 9, 1, 2); g.fillRect(11, 9, 1, 2);
+  outlineRect(g, 7, 3, 6, 8, 0x1a1428);
+  g.generateTexture(key, 20, 13);
+  g.destroy();
+}
+
+// --- Spider: dark crawler, 8 legs, red eyes ---------------------------------
+
+function drawSpider(scene: Phaser.Scene): void {
+  const key = 'zombie_spider';
+  if (scene.textures.exists(key)) return;
+  const g = scene.add.graphics();
+  const bodyC = 0x2e2a3a;
+  const legC = 0x1e1a28;
+  // Legs (4 per side)
+  g.fillStyle(legC, 1);
+  for (let i = 0; i < 4; i++) {
+    const y = 4 + i * 3;
+    g.fillRect(0, y, 6, 1); g.fillRect(16, y, 6, 1);
+    g.fillRect(0, y - 1, 1, 2); g.fillRect(21, y - 1, 1, 2);
+  }
+  // Abdomen + head
+  g.fillStyle(bodyC, 1);
+  g.fillRect(6, 3, 10, 9);
+  g.fillRect(8, 11, 6, 4);
+  g.fillStyle(0x453e56, 1);
+  g.fillRect(7, 4, 8, 2);
+  // Markings
+  g.fillStyle(0x8a2a2a, 1); g.fillRect(10, 5, 2, 4);
+  // Eyes (front cluster)
+  g.fillStyle(0xff3030, 1);
+  g.fillRect(9, 12, 1, 1); g.fillRect(12, 12, 1, 1);
+  g.fillRect(10, 13, 2, 1);
+  outlineRect(g, 6, 3, 10, 9, 0x0e0c14);
+  g.generateTexture(key, 22, 16);
+  g.destroy();
+}
+
+function drawSpiderling(scene: Phaser.Scene): void {
+  const key = 'zombie_spiderling';
+  if (scene.textures.exists(key)) return;
+  const g = scene.add.graphics();
+  g.fillStyle(0x1e1a28, 1);
+  g.fillRect(0, 3, 3, 1); g.fillRect(9, 3, 3, 1);
+  g.fillRect(0, 6, 3, 1); g.fillRect(9, 6, 3, 1);
+  g.fillStyle(0x2e2a3a, 1); g.fillRect(3, 1, 6, 7);
+  g.fillStyle(0xff3030, 1); g.fillRect(4, 6, 1, 1); g.fillRect(7, 6, 1, 1);
+  outlineRect(g, 3, 1, 6, 7, 0x0e0c14);
+  g.generateTexture(key, 12, 9);
+  g.destroy();
+}
+
+// --- Skeleton miner: bones + lamp helmet, throws bones -----------------------
+
+function drawSkeleton(scene: Phaser.Scene): void {
+  const key = 'zombie_skeleton';
+  if (scene.textures.exists(key)) return;
+  const g = scene.add.graphics();
+  const bone = 0xe8e0d0;
+  const boneDark = 0xb8b0a0;
+  // Mining helmet with lamp
+  g.fillStyle(0xd9a44a, 1); g.fillRect(6, 0, 10, 4);
+  g.fillStyle(0xffe08a, 1); g.fillRect(10, 1, 2, 2);
+  // Skull
+  g.fillStyle(bone, 1); g.fillRect(6, 4, 10, 8);
+  g.fillStyle(boneDark, 1); g.fillRect(6, 11, 10, 1);
+  // Eye sockets
+  g.fillStyle(0x0a0a12, 1); g.fillRect(8, 6, 2, 2); g.fillRect(12, 6, 2, 2);
+  g.fillStyle(0x6ad0ff, 1); g.fillRect(8, 6, 1, 1); g.fillRect(12, 6, 1, 1);
+  // Jaw
+  g.fillStyle(bone, 1); g.fillRect(8, 12, 6, 2);
+  g.fillStyle(0x0a0a12, 1); g.fillRect(9, 12, 1, 1); g.fillRect(11, 12, 1, 1); g.fillRect(13, 12, 1, 1);
+  // Ribcage
+  g.fillStyle(bone, 1); g.fillRect(7, 15, 8, 7);
+  g.fillStyle(0x0a0a12, 1);
+  g.fillRect(7, 16, 8, 1); g.fillRect(7, 18, 8, 1); g.fillRect(7, 20, 8, 1);
+  // Arms (one raised to throw)
+  g.fillStyle(boneDark, 1);
+  g.fillRect(3, 13, 4, 2); g.fillRect(2, 10, 2, 4);
+  g.fillRect(15, 15, 4, 2);
+  // Bone in hand
+  g.fillStyle(bone, 1); g.fillRect(1, 8, 4, 2);
+  // Legs
+  g.fillStyle(boneDark, 1);
+  g.fillRect(8, 22, 2, 5); g.fillRect(12, 22, 2, 5);
+  g.fillStyle(bone, 1); g.fillRect(7, 26, 3, 2); g.fillRect(12, 26, 3, 2);
+  outlineRect(g, 6, 4, 10, 8, 0x1a1a22);
+  g.generateTexture(key, 22, 28);
+  g.destroy();
+}
+
+// --- The Zombie King: towering, crowned, caped ------------------------------
+
+function drawKing(scene: Phaser.Scene): void {
+  const key = 'zombie_king';
+  if (scene.textures.exists(key)) return;
+  const g = scene.add.graphics();
+  const skin = 0x3e6e3e;
+  const skinDark = 0x2a4a2a;
+  const cape = 0x5a1a6e;
+  const capeDark = 0x3a1048;
+  // Cape behind body
+  g.fillStyle(cape, 1); g.fillRect(3, 12, 30, 24);
+  g.fillStyle(capeDark, 1);
+  g.fillRect(3, 34, 30, 2);
+  g.fillRect(3, 12, 2, 24); g.fillRect(31, 12, 2, 24);
+  // Crown
+  g.fillStyle(0xffd700, 1);
+  g.fillRect(10, 0, 16, 4);
+  g.fillRect(10, 0, 3, 3); g.fillRect(16, 0, 3, 3); g.fillRect(23, 0, 3, 3);
+  g.fillStyle(0xff4d88, 1); g.fillRect(17, 1, 2, 2);
+  // Head
+  g.fillStyle(skin, 1); g.fillRect(10, 4, 16, 11);
+  g.fillStyle(skinDark, 1); g.fillRect(10, 14, 16, 1); g.fillRect(23, 5, 3, 9);
+  // Eyes — burning purple
+  g.fillStyle(0xc46aff, 1); g.fillRect(13, 8, 3, 3); g.fillRect(20, 8, 3, 3);
+  g.fillStyle(0xffffff, 1); g.fillRect(14, 8, 1, 1); g.fillRect(21, 8, 1, 1);
+  // Jagged mouth
+  g.fillStyle(0x0a0a0a, 1); g.fillRect(13, 12, 10, 2);
+  g.fillStyle(0xe8e0d0, 1);
+  g.fillRect(14, 12, 1, 1); g.fillRect(17, 13, 1, 1); g.fillRect(20, 12, 1, 1);
+  // Body — royal tunic
+  g.fillStyle(0x2a3a5a, 1); g.fillRect(8, 15, 20, 14);
+  g.fillStyle(0x3a4e77, 1); g.fillRect(9, 16, 18, 3);
+  g.fillStyle(0xffd700, 1); g.fillRect(16, 15, 4, 14); // gold sash
+  // Arms
+  g.fillStyle(skin, 1); g.fillRect(3, 16, 5, 11); g.fillRect(28, 16, 5, 11);
+  g.fillStyle(skinDark, 1); g.fillRect(3, 26, 5, 1); g.fillRect(28, 26, 5, 1);
+  // Claws
+  g.fillStyle(0xe8e0d0, 1);
+  g.fillRect(3, 27, 1, 2); g.fillRect(6, 27, 1, 2);
+  g.fillRect(28, 27, 1, 2); g.fillRect(31, 27, 1, 2);
+  // Legs
+  g.fillStyle(0x1a2438, 1); g.fillRect(11, 29, 5, 9); g.fillRect(20, 29, 5, 9);
+  g.fillStyle(0x0a0a0a, 1); g.fillRect(10, 38, 7, 3); g.fillRect(19, 38, 7, 3);
+  outlineRect(g, 10, 4, 16, 11, 0x0a0a0a);
+  outlineRect(g, 8, 15, 20, 14, 0x0a0a0a);
+  g.generateTexture(key, 36, 42);
+  g.destroy();
 }
 
 // --- Normal: slumped shambler — mottled rotting green, hanging jaw, one dead eye --------
@@ -672,6 +904,19 @@ export class Zombie {
   private shadow: Phaser.GameObjects.Ellipse;
   private shadowOffY = 0;
 
+  readonly erratic: boolean;
+  readonly noWallAttack: boolean;
+  readonly layWebs: boolean;
+  readonly projectileResistant: boolean;
+  /** Temporary slow (webs, freeze wand): speed multiplier until the timer runs out. */
+  slowMs = 0;
+  slowFactor = 1;
+  private rangedRangePx?: number;
+  private rangedFireMs?: number;
+  private rangedTimerMs = 800;
+  private wobblePhase = Math.random() * Math.PI * 2;
+  private webDistAccum = 0;
+
   constructor(scene: Phaser.Scene, world: World, worldX: number, worldY: number, spec: ZombieSpec) {
     this.scene = scene;
     this.world = world;
@@ -681,32 +926,52 @@ export class Zombie {
       spec.variant === 'fast' ? 'zombie_fast' :
       spec.variant === 'armored' ? 'zombie_armored' :
       spec.variant === 'brute' ? 'zombie_brute' :
+      spec.variant === 'bat' ? 'zombie_bat' :
+      spec.variant === 'spider' ? 'zombie_spider' :
+      spec.variant === 'spiderling' ? 'zombie_spiderling' :
+      spec.variant === 'skeleton' ? 'zombie_skeleton' :
+      spec.variant === 'king' ? 'zombie_king' :
       'zombie_normal';
     // Shadow dims are tuned to match (sprite height / 2) * scale for each variant
     // so the ellipse hugs the feet after the texture resize.
     const shadowW =
+      spec.variant === 'king' ? 66 :
       spec.variant === 'boss' ? 60 :
       spec.variant === 'brute' ? 44 :
       spec.variant === 'goblin' ? 20 :
       spec.variant === 'armored' ? 32 :
+      spec.variant === 'bat' ? 18 :
+      spec.variant === 'spider' ? 26 :
+      spec.variant === 'spiderling' ? 12 :
+      spec.variant === 'skeleton' ? 26 :
       spec.variant === 'fast' ? 22 : 26;
     const shadowOffY =
+      spec.variant === 'king' ? 42 :
       spec.variant === 'boss' ? 34 :
       spec.variant === 'brute' ? 26 :
       spec.variant === 'goblin' ? 15 :
       spec.variant === 'armored' ? 20 :
+      spec.variant === 'bat' ? 14 :
+      spec.variant === 'spider' ? 11 :
+      spec.variant === 'spiderling' ? 7 :
+      spec.variant === 'skeleton' ? 19 :
       spec.variant === 'fast' ? 16 : 18;
-    const shadowH = spec.variant === 'boss' ? 10 : spec.variant === 'brute' ? 8 : 6;
-    const shadowA = spec.variant === 'boss' ? 0.45 : spec.variant === 'brute' ? 0.4 : 0.35;
+    const shadowH = spec.variant === 'king' ? 11 : spec.variant === 'boss' ? 10 : spec.variant === 'brute' ? 8 : 6;
+    const shadowA = spec.variant === 'king' ? 0.5 : spec.variant === 'boss' ? 0.45 : spec.variant === 'brute' ? 0.4 : 0.35;
     this.shadow = scene.add.ellipse(worldX, worldY + shadowOffY, shadowW, shadowH, 0x000000, shadowA);
     this.shadow.setDepth(8);
     this.shadowOffY = shadowOffY;
     this.sprite = scene.add.image(worldX, worldY, key);
     const scale =
+      spec.variant === 'king' ? 2.1 :
       spec.variant === 'boss' ? 1.8 :
       spec.variant === 'brute' ? 1.9 :
       spec.variant === 'goblin' ? 1.25 :
       spec.variant === 'armored' ? 1.6 :
+      spec.variant === 'bat' ? 1.35 :
+      spec.variant === 'spider' ? 1.35 :
+      spec.variant === 'spiderling' ? 1.2 :
+      spec.variant === 'skeleton' ? 1.35 :
       spec.variant === 'fast' ? 1.25 : 1.4;
     this.sprite.setScale(scale);
     this.sprite.setDepth(9);
@@ -715,6 +980,34 @@ export class Zombie {
     this.damage = spec.damage;
     this.speed = spec.speed;
     this.variant = spec.variant;
+    this.erratic = spec.erratic ?? false;
+    this.noWallAttack = spec.noWallAttack ?? false;
+    this.layWebs = spec.layWebs ?? false;
+    this.projectileResistant = spec.projectileResistant ?? false;
+    this.rangedRangePx = spec.rangedRangePx;
+    this.rangedFireMs = spec.rangedFireMs;
+  }
+
+  /** Apply a temporary slow (webs, freeze wand). Strongest slow wins. */
+  applySlow(durationMs: number, factor: number): void {
+    this.slowMs = Math.max(this.slowMs, durationMs);
+    this.slowFactor = Math.min(this.slowFactor === 1 ? factor : this.slowFactor, factor);
+  }
+
+  private effectiveSpeed(): number {
+    return this.slowMs > 0 ? this.speed * this.slowFactor : this.speed;
+  }
+
+  private hasLineOfSight(px: number, py: number): boolean {
+    const dist = Math.hypot(px - this.sprite.x, py - this.sprite.y);
+    const steps = Math.max(1, Math.ceil(dist / (TILE_SIZE / 2)));
+    for (let i = 1; i < steps; i++) {
+      const x = this.sprite.x + ((px - this.sprite.x) * i) / steps;
+      const y = this.sprite.y + ((py - this.sprite.y) * i) / steps;
+      const tp = this.world.worldToTile(x, y);
+      if (this.world.blocksProjectile(tp.x, tp.y)) return false;
+    }
+    return true;
   }
 
   update(deltaMs: number, player: Player, neighbors: Zombie[]): void {
@@ -722,6 +1015,10 @@ export class Zombie {
     if (this.attackCooldownMs > 0) this.attackCooldownMs -= deltaMs;
     if (this.repathCooldownMs > 0) this.repathCooldownMs -= deltaMs;
     if (this.target) this.target.committedMs -= deltaMs;
+    if (this.slowMs > 0) {
+      this.slowMs -= deltaMs;
+      if (this.slowMs <= 0) this.slowFactor = 1;
+    }
 
     // Lava damage to zombies (the zombie's tile type)
     const myTile = this.world.worldToTile(this.sprite.x, this.sprite.y);
@@ -751,14 +1048,31 @@ export class Zombie {
       return;
     }
 
+    // Ranged attacker (skeleton miner): stand off and throw bones
+    if (this.rangedRangePx && distPx <= this.rangedRangePx && this.hasLineOfSight(player.x, player.y)) {
+      this.rangedTimerMs -= deltaMs;
+      if (this.rangedTimerMs <= 0) {
+        this.rangedTimerMs = this.rangedFireMs ?? 1900;
+        const mag = distPx || 1;
+        this.scene.events.emit('enemy_shoot', this.sprite.x, this.sprite.y, dxP / mag, dyP / mag, Math.round(this.damage));
+        this.scene.tweens.add({ targets: this.sprite, scaleX: this.sprite.scaleX * 1.12, duration: 90, yoyo: true });
+      }
+      if (distPx <= this.rangedRangePx * 0.7) {
+        // Hold position while in comfortable range — bob menacingly
+        this.walkPhase += deltaMs / 200;
+        this.sprite.setRotation(Math.sin(this.walkPhase) * 0.06);
+        return;
+      }
+    }
+
     // Pathfind periodically
     if (!this.target || this.target.committedMs <= 0 || this.repathCooldownMs <= 0) {
-      const next = bfsNextStep(this.world, selfTile, playerTile, true);
+      const next = bfsNextStep(this.world, selfTile, playerTile, !this.noWallAttack);
       if (next) {
         const nextTile = this.world.getTileAt(next.x, next.y);
         if (nextTile && !this.world.isWalkable(next.x, next.y)) {
-          // Next step is a wall — commit to breaking it
-          this.target = { kind: 'wall', tx: next.x, ty: next.y, committedMs: 1400 };
+          // Next step is a wall — commit to breaking it (unless this enemy never attacks walls)
+          this.target = this.noWallAttack ? null : { kind: 'wall', tx: next.x, ty: next.y, committedMs: 1400 };
         } else {
           this.target = { kind: 'path', tx: next.x, ty: next.y, committedMs: 400 };
         }
@@ -822,6 +1136,14 @@ export class Zombie {
     let vx = (dx / mag) * desire;
     let vy = (dy / mag) * desire;
 
+    // Erratic flight (bats): weave perpendicular to the travel direction
+    if (this.erratic) {
+      this.wobblePhase += deltaMs / 130;
+      const weave = Math.sin(this.wobblePhase) * 0.7;
+      vx += (-dy / mag) * weave;
+      vy += (dx / mag) * weave;
+    }
+
     // Separation: push away from neighbors that are too close
     const sepRadius = TILE_SIZE * 0.6;
     for (const other of neighbors) {
@@ -839,7 +1161,7 @@ export class Zombie {
     const m2 = Math.hypot(vx, vy) || 1;
     vx /= m2;
     vy /= m2;
-    const step = (this.speed * deltaMs) / 1000;
+    const step = (this.effectiveSpeed() * deltaMs) / 1000;
     const nextX = this.sprite.x + vx * step;
     const nextY = this.sprite.y + vy * step;
 
@@ -850,7 +1172,7 @@ export class Zombie {
       this.sprite.x = nextX;
     } else if (this.canStand(this.sprite.x, nextY)) {
       this.sprite.y = nextY;
-    } else {
+    } else if (!this.noWallAttack) {
       // Totally blocked — try to damage the tile ahead (fallback)
       const probe = Math.abs(vx) > Math.abs(vy)
         ? this.world.worldToTile(nextX, this.sprite.y)
@@ -860,6 +1182,19 @@ export class Zombie {
         this.world.damageTile(probe.x, probe.y, Math.ceil(this.damage / 1.6));
         this.attackCooldownMs = 550;
         this.scene.events.emit('zombie_hit_wall', probe.x * TILE_SIZE + TILE_SIZE / 2, probe.y * TILE_SIZE + TILE_SIZE / 2, t.type);
+      }
+    }
+
+    // Spiders lace the ground with slowing webs as they travel
+    if (this.layWebs) {
+      this.webDistAccum += step;
+      if (this.webDistAccum >= TILE_SIZE) {
+        this.webDistAccum = 0;
+        if (Math.random() < 0.14) {
+          const tp = this.world.worldToTile(this.sprite.x, this.sprite.y);
+          const t = this.world.getTileAt(tp.x, tp.y);
+          if (t && isPlaceableGround(t.type)) this.world.placeTile(tp.x, tp.y, TileType.Web);
+        }
       }
     }
 

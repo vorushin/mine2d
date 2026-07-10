@@ -60,6 +60,21 @@ export const TEX = {
   crack_light: 'crack_light',
   crack_heavy: 'crack_heavy',
   light_glow: 'light_glow',
+  cave_floor: 'cave_floor',
+  cave_floor_2: 'cave_floor_2',
+  cave_rock: 'cave_rock',
+  crystal_ore: 'crystal_ore',
+  obsidian_ore: 'obsidian_ore',
+  cave_entrance: 'cave_entrance',
+  ladder_up: 'ladder_up',
+  ladder_down: 'ladder_down',
+  vault_chest: 'vault_chest',
+  throne_gate: 'throne_gate',
+  wall_obsidian: 'wall_obsidian',
+  gravestone: 'gravestone',
+  crypt: 'crypt',
+  web: 'web',
+  bone: 'bone',
 } as const;
 
 export function generateAllTextures(scene: Phaser.Scene): void {
@@ -827,6 +842,221 @@ export function generateAllTextures(scene: Phaser.Scene): void {
     g.fillRect(2, 2, 2, 2);
   });
 
+  // --- The Deep Dark -------------------------------------------------------
+
+  // Cave floor: dark slate with pebbles
+  make(scene, TEX.cave_floor, 32, 32, (g) => {
+    g.fillStyle(0x2e2e3a, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x26262f, 1);
+    g.fillRect(5, 7, 3, 2); g.fillRect(20, 4, 4, 2); g.fillRect(12, 18, 3, 3);
+    g.fillRect(25, 24, 4, 2); g.fillRect(3, 26, 3, 2);
+    g.fillStyle(0x3a3a48, 1);
+    g.fillRect(9, 12, 2, 1); g.fillRect(22, 15, 2, 1); g.fillRect(16, 27, 2, 1);
+  });
+
+  make(scene, TEX.cave_floor_2, 32, 32, (g) => {
+    g.fillStyle(0x2b2b36, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x23232c, 1);
+    g.fillRect(14, 6, 4, 2); g.fillRect(4, 16, 3, 2); g.fillRect(24, 20, 3, 3);
+    g.fillStyle(0x383846, 1);
+    g.fillRect(7, 4, 2, 1); g.fillRect(19, 25, 3, 1); g.fillRect(27, 9, 2, 1);
+    // faint mineral sparkle
+    g.fillStyle(0x4a5a6a, 0.8); g.fillRect(11, 22, 1, 1); g.fillRect(28, 3, 1, 1);
+  });
+
+  // Cave rock: chunky minable wall
+  make(scene, TEX.cave_rock, 32, 32, (g) => {
+    g.fillStyle(0x4a4a58, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x5a5a6a, 1);
+    g.fillRect(2, 2, 12, 8); g.fillRect(18, 4, 11, 7); g.fillRect(4, 14, 9, 8);
+    g.fillRect(17, 15, 12, 9); g.fillRect(6, 25, 14, 5);
+    g.fillStyle(0x35353f, 1);
+    g.fillRect(0, 11, 32, 2); g.fillRect(14, 0, 2, 12); g.fillRect(13, 13, 2, 12);
+    g.fillRect(0, 23, 15, 2); g.fillRect(29, 12, 2, 14); g.fillRect(20, 25, 2, 7);
+    g.fillStyle(0x6a6a7c, 1);
+    g.fillRect(3, 3, 6, 2); g.fillRect(19, 5, 5, 1); g.fillRect(5, 15, 4, 1);
+    outline(g, 0, 0, 32, 32, 0x23232c);
+  });
+
+  // Crystal ore: dark rock + cyan shards
+  make(scene, TEX.crystal_ore, 32, 32, (g) => {
+    g.fillStyle(0x3a3a4c, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x4a4a5e, 1);
+    g.fillRect(2, 2, 12, 9); g.fillRect(17, 16, 12, 10);
+    // shards
+    g.fillStyle(0x39c7e8, 1);
+    g.fillRect(8, 12, 4, 10); g.fillRect(19, 5, 4, 9); g.fillRect(14, 20, 3, 8);
+    g.fillStyle(0x7fe7ff, 1);
+    g.fillRect(9, 13, 2, 8); g.fillRect(20, 6, 2, 7); g.fillRect(15, 21, 1, 6);
+    g.fillStyle(0xd8f8ff, 1);
+    g.fillRect(9, 13, 1, 3); g.fillRect(20, 6, 1, 3);
+    // shard tips
+    g.fillStyle(0x39c7e8, 1);
+    g.fillRect(9, 10, 2, 2); g.fillRect(20, 3, 2, 2); g.fillRect(15, 18, 1, 2);
+    outline(g, 0, 0, 32, 32, 0x23232c);
+  });
+
+  // Obsidian ore: glassy black with purple sheen
+  make(scene, TEX.obsidian_ore, 32, 32, (g) => {
+    g.fillStyle(0x201a30, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x2c2440, 1);
+    g.fillRect(3, 3, 11, 10); g.fillRect(17, 6, 11, 9); g.fillRect(6, 16, 12, 11);
+    g.fillRect(20, 18, 9, 10);
+    g.fillStyle(0x453a66, 1);
+    g.fillRect(4, 4, 4, 2); g.fillRect(18, 7, 4, 2); g.fillRect(7, 17, 4, 2);
+    g.fillStyle(0x8a6aff, 0.9);
+    g.fillRect(5, 5, 2, 1); g.fillRect(19, 8, 2, 1); g.fillRect(8, 18, 2, 1);
+    g.fillRect(22, 20, 2, 1);
+    outline(g, 0, 0, 32, 32, 0x120e1e);
+  });
+
+  // Cave entrance: dark hole with rocky rim + ladder hint
+  make(scene, TEX.cave_entrance, 32, 32, (g) => {
+    g.fillStyle(0x4a4a58, 1); g.fillRect(2, 2, 28, 28);
+    g.fillStyle(0x2a2a34, 1); g.fillRect(5, 5, 22, 22);
+    g.fillStyle(0x0a0a12, 1); g.fillRect(7, 7, 18, 18);
+    // ladder top rungs catching light
+    g.fillStyle(0x8a6a3a, 1);
+    g.fillRect(13, 8, 2, 14); g.fillRect(18, 8, 2, 14);
+    g.fillStyle(0xa8845a, 1);
+    g.fillRect(13, 10, 7, 1); g.fillRect(13, 14, 7, 1); g.fillRect(13, 18, 7, 1);
+    // rim highlights
+    g.fillStyle(0x6a6a7c, 1);
+    g.fillRect(2, 2, 10, 2); g.fillRect(20, 27, 9, 2); g.fillRect(2, 12, 2, 8);
+    outline(g, 2, 2, 28, 28, 0x1a1a22);
+  });
+
+  // Ladder up (in caves): lit shaft + wooden ladder
+  make(scene, TEX.ladder_up, 32, 32, (g) => {
+    g.fillStyle(0x3a3a48, 1); g.fillRect(3, 3, 26, 26);
+    g.fillStyle(0x5a5a6e, 1); g.fillRect(6, 6, 20, 20);
+    // warm light from above
+    g.fillStyle(0xffe8b0, 0.35); g.fillRect(8, 6, 16, 8);
+    g.fillStyle(0x8a6a3a, 1);
+    g.fillRect(12, 7, 2, 19); g.fillRect(19, 7, 2, 19);
+    g.fillStyle(0xa8845a, 1);
+    g.fillRect(12, 9, 9, 1); g.fillRect(12, 13, 9, 1); g.fillRect(12, 17, 9, 1); g.fillRect(12, 21, 9, 1);
+    outline(g, 3, 3, 26, 26, 0x23232c);
+  });
+
+  // Ladder down (in caves): darker hole leading deeper
+  make(scene, TEX.ladder_down, 32, 32, (g) => {
+    g.fillStyle(0x3a3a48, 1); g.fillRect(2, 2, 28, 28);
+    g.fillStyle(0x1a1a24, 1); g.fillRect(5, 5, 22, 22);
+    g.fillStyle(0x05050c, 1); g.fillRect(8, 8, 16, 16);
+    g.fillStyle(0x6a5230, 1);
+    g.fillRect(13, 8, 2, 14); g.fillRect(18, 8, 2, 14);
+    g.fillStyle(0x84663c, 1);
+    g.fillRect(13, 11, 7, 1); g.fillRect(13, 15, 7, 1); g.fillRect(13, 19, 7, 1);
+    // deep red glow far below
+    g.fillStyle(0x8a2a1a, 0.5); g.fillRect(12, 22, 8, 2);
+    outline(g, 2, 2, 28, 28, 0x1a1a22);
+  });
+
+  // Vault chest: golden treasure chest
+  make(scene, TEX.vault_chest, 26, 22, (g) => {
+    g.fillStyle(0x8a5a2a, 1); g.fillRect(2, 8, 22, 12);
+    g.fillStyle(0xa8743a, 1); g.fillRect(2, 8, 22, 4);
+    g.fillStyle(0xd9a44a, 1); g.fillRect(2, 2, 22, 7);
+    g.fillStyle(0xf2c76a, 1); g.fillRect(3, 3, 20, 3);
+    // straps + lock
+    g.fillStyle(0x5a3a1a, 1); g.fillRect(11, 2, 4, 18);
+    g.fillStyle(0xffe08a, 1); g.fillRect(12, 9, 2, 4);
+    g.fillStyle(0xfff4c0, 1); g.fillRect(12, 9, 1, 2);
+    outline(g, 2, 2, 22, 18, 0x2a1a0a);
+  });
+
+  // Throne gate: ominous purple-bone gate
+  make(scene, TEX.throne_gate, 32, 32, (g) => {
+    g.fillStyle(0x3a2a4a, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x55356e, 1); g.fillRect(2, 2, 28, 28);
+    g.fillStyle(0x6a2a8a, 1);
+    g.fillRect(4, 4, 24, 6); g.fillRect(4, 14, 24, 6); g.fillRect(4, 24, 24, 5);
+    // bone bars
+    g.fillStyle(0xd8d0c0, 1);
+    g.fillRect(8, 3, 3, 27); g.fillRect(15, 3, 3, 27); g.fillRect(22, 3, 3, 27);
+    g.fillStyle(0xf0e8d8, 1);
+    g.fillRect(8, 3, 1, 27); g.fillRect(15, 3, 1, 27); g.fillRect(22, 3, 1, 27);
+    // skull centerpiece
+    g.fillStyle(0xf0e8d8, 1); g.fillRect(12, 11, 8, 7);
+    g.fillStyle(0x1a0a24, 1); g.fillRect(13, 13, 2, 2); g.fillRect(17, 13, 2, 2);
+    g.fillRect(14, 16, 1, 1); g.fillRect(16, 16, 1, 1);
+    outline(g, 0, 0, 32, 32, 0x1a0a24);
+  });
+
+  // Obsidian wall: player-built top-tier wall
+  make(scene, TEX.wall_obsidian, 32, 32, (g) => {
+    g.fillStyle(0x2c2440, 1); g.fillRect(0, 0, 32, 32);
+    g.fillStyle(0x3a3050, 1);
+    g.fillRect(1, 1, 14, 9); g.fillRect(17, 1, 14, 9);
+    g.fillRect(1, 12, 9, 8); g.fillRect(12, 12, 19, 8);
+    g.fillRect(1, 22, 19, 9); g.fillRect(22, 22, 9, 9);
+    g.fillStyle(0x504070, 1);
+    g.fillRect(2, 2, 6, 2); g.fillRect(18, 2, 6, 2); g.fillRect(13, 13, 6, 2); g.fillRect(2, 23, 6, 2);
+    g.fillStyle(0x8a6aff, 0.5);
+    g.fillRect(3, 3, 2, 1); g.fillRect(19, 3, 2, 1); g.fillRect(14, 14, 2, 1);
+    outline(g, 0, 0, 32, 32, 0x120e1e);
+  });
+
+  // Gravestone
+  make(scene, TEX.gravestone, 24, 26, (g) => {
+    g.fillStyle(0x8a8a98, 1); g.fillRect(5, 6, 14, 18);
+    g.fillStyle(0x9a9aa8, 1); g.fillRect(6, 3, 12, 6);
+    g.fillStyle(0xacacba, 1); g.fillRect(6, 3, 12, 2); g.fillRect(6, 7, 2, 14);
+    // engraving
+    g.fillStyle(0x555562, 1);
+    g.fillRect(10, 9, 4, 1); g.fillRect(11, 8, 2, 4);
+    g.fillRect(9, 15, 6, 1); g.fillRect(9, 18, 6, 1);
+    // mossy base
+    g.fillStyle(0x3e5e3e, 1); g.fillRect(4, 22, 16, 3);
+    g.fillStyle(0x4e7a4e, 1); g.fillRect(5, 22, 4, 1); g.fillRect(14, 23, 4, 1);
+    outline(g, 5, 3, 14, 21, 0x33333c);
+  });
+
+  // Crypt: dark mausoleum core of a graveyard
+  make(scene, TEX.crypt, 32, 32, (g) => {
+    g.fillStyle(0x494956, 1); g.fillRect(1, 8, 30, 23);
+    g.fillStyle(0x555568, 1); g.fillRect(3, 10, 26, 19);
+    // roof
+    g.fillStyle(0x3a3a46, 1); g.fillRect(0, 4, 32, 6);
+    g.fillStyle(0x2e2e38, 1); g.fillRect(2, 2, 28, 4);
+    // dark doorway with glowing eyes
+    g.fillStyle(0x0e0e16, 1); g.fillRect(11, 14, 10, 15);
+    g.fillStyle(0x9fff6a, 1); g.fillRect(13, 19, 2, 2); g.fillRect(17, 19, 2, 2);
+    // skull above door
+    g.fillStyle(0xe8e0d0, 1); g.fillRect(13, 10, 6, 4);
+    g.fillStyle(0x0e0e16, 1); g.fillRect(14, 11, 1, 1); g.fillRect(17, 11, 1, 1);
+    // cracks
+    g.fillStyle(0x33333e, 1); g.fillRect(6, 13, 1, 7); g.fillRect(25, 16, 1, 9);
+    outline(g, 1, 2, 30, 29, 0x1e1e26);
+  });
+
+  // Thrown bone (skeleton miner projectile)
+  make(scene, TEX.bone, 12, 5, (g) => {
+    g.fillStyle(0xe8e0d0, 1);
+    g.fillRect(2, 2, 8, 1);
+    g.fillRect(0, 0, 3, 2); g.fillRect(0, 3, 3, 2);
+    g.fillRect(9, 0, 3, 2); g.fillRect(9, 3, 3, 2);
+    g.fillStyle(0xb8b0a0, 1);
+    g.fillRect(2, 3, 8, 1);
+  });
+
+  // Spider web (floor tile)
+  make(scene, TEX.web, 32, 32, (g) => {
+    g.fillStyle(0xe8e8f8, 0.75);
+    // radial strands
+    g.fillRect(15, 2, 2, 28); g.fillRect(2, 15, 28, 2);
+    g.fillRect(5, 5, 2, 2); g.fillRect(8, 8, 2, 2); g.fillRect(11, 11, 2, 2);
+    g.fillRect(25, 5, 2, 2); g.fillRect(22, 8, 2, 2); g.fillRect(19, 11, 2, 2);
+    g.fillRect(5, 25, 2, 2); g.fillRect(8, 22, 2, 2); g.fillRect(11, 19, 2, 2);
+    g.fillRect(25, 25, 2, 2); g.fillRect(22, 22, 2, 2); g.fillRect(19, 19, 2, 2);
+    // rings
+    g.fillStyle(0xffffff, 0.55);
+    g.fillRect(10, 6, 12, 1); g.fillRect(10, 25, 12, 1);
+    g.fillRect(6, 10, 1, 12); g.fillRect(25, 10, 1, 12);
+    g.fillRect(12, 10, 8, 1); g.fillRect(12, 21, 8, 1);
+    g.fillRect(10, 12, 1, 8); g.fillRect(21, 12, 1, 8);
+  });
 }
 
 function make(scene: Phaser.Scene, key: string, w: number, h: number, paint: (g: Phaser.GameObjects.Graphics) => void) {

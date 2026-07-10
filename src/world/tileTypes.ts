@@ -28,6 +28,20 @@ export const enum TileType {
   WallReinforced,
   TurretFlame,
   SpikeTrap,
+  // The Deep Dark (appended — tile type ids persist in saves)
+  CaveRock,
+  CaveFloor,
+  CrystalOre,
+  ObsidianOre,
+  CaveEntrance,
+  LadderUp,
+  LadderDown,
+  VaultChest,
+  ThroneGate,
+  WallObsidian,
+  Gravestone,
+  Crypt,
+  Web,
 }
 
 export type MaterialId =
@@ -87,10 +101,30 @@ export const TILE_SPECS: Record<TileType, TileSpec> = {
   [TileType.WallReinforced]: { walkable: false, opaque: true, baseHp: 320, pickaxeTier: 2, dropMaterial: 'iron', dropCount: 1, tintColor: C(0x5a5a70) },
   [TileType.TurretFlame]: { walkable: false, opaque: true, baseHp: 50, pickaxeTier: 1, dropMaterial: 'iron', dropCount: 1, tintColor: C(0xff8030) },
   [TileType.SpikeTrap]: { walkable: true, opaque: false, baseHp: 22, pickaxeTier: 0, dropMaterial: 'stone', dropCount: 1, tintColor: C(0xc7ccd4) },
+
+  [TileType.CaveRock]: { walkable: false, opaque: true, baseHp: 14, pickaxeTier: 0, dropMaterial: 'stone', dropCount: 1, tintColor: C(0x4a4a58) },
+  [TileType.CaveFloor]: { walkable: true, opaque: false, baseHp: 0, pickaxeTier: 0, tintColor: C(0x2e2e3a) },
+  [TileType.CrystalOre]: { walkable: false, opaque: true, baseHp: 26, pickaxeTier: 2, dropMaterial: 'crystal', dropCount: 1, tintColor: C(0x7fe7ff) },
+  [TileType.ObsidianOre]: { walkable: false, opaque: true, baseHp: 40, pickaxeTier: 3, dropMaterial: 'obsidian', dropCount: 1, tintColor: C(0x2c2440) },
+  [TileType.CaveEntrance]: { walkable: true, opaque: false, baseHp: 99999, pickaxeTier: 3, tintColor: C(0x14141e) },
+  [TileType.LadderUp]: { walkable: true, opaque: false, baseHp: 99999, pickaxeTier: 3, tintColor: C(0x8a6a3a) },
+  [TileType.LadderDown]: { walkable: true, opaque: false, baseHp: 99999, pickaxeTier: 3, tintColor: C(0x3a2a18) },
+  [TileType.VaultChest]: { walkable: false, opaque: true, baseHp: 10, pickaxeTier: 0, tintColor: C(0xd9a44a) },
+  [TileType.ThroneGate]: { walkable: false, opaque: true, baseHp: 99999, pickaxeTier: 3, tintColor: C(0x6a2a8a) },
+  [TileType.WallObsidian]: { walkable: false, opaque: true, baseHp: 460, pickaxeTier: 3, dropMaterial: 'obsidian', dropCount: 1, tintColor: C(0x3a3050) },
+  [TileType.Gravestone]: { walkable: false, opaque: true, baseHp: 20, pickaxeTier: 0, dropMaterial: 'stone', dropCount: 1, tintColor: C(0x9a9aa8) },
+  [TileType.Crypt]: { walkable: false, opaque: true, baseHp: 260, pickaxeTier: 0, tintColor: C(0x555568) },
+  [TileType.Web]: { walkable: true, opaque: false, baseHp: 1, pickaxeTier: 0, tintColor: C(0xe8e8f8) },
 };
 
 export function isPlaceableGround(type: TileType): boolean {
-  return type === TileType.Grass || type === TileType.Dirt || type === TileType.Sand || type === TileType.FlowerField;
+  return (
+    type === TileType.Grass ||
+    type === TileType.Dirt ||
+    type === TileType.Sand ||
+    type === TileType.FlowerField ||
+    type === TileType.CaveFloor
+  );
 }
 
 export function isBreakable(type: TileType): boolean {
@@ -100,6 +134,12 @@ export function isBreakable(type: TileType): boolean {
     type !== TileType.Sand &&
     type !== TileType.FlowerField &&
     type !== TileType.Water &&
-    type !== TileType.ShopNPC
+    type !== TileType.ShopNPC &&
+    type !== TileType.CaveFloor &&
+    type !== TileType.CaveEntrance &&
+    type !== TileType.LadderUp &&
+    type !== TileType.LadderDown &&
+    type !== TileType.ThroneGate &&
+    type !== TileType.Crater
   );
 }

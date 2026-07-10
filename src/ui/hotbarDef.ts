@@ -14,7 +14,7 @@ export type HotbarAction =
       description: string;
       color: number;
       tile: TileType;
-      cost: { material: 'wood' | 'stone' | 'iron' | 'lava' | 'wallReinforced' | 'turretFlame'; count: number }[];
+      cost: { material: 'wood' | 'stone' | 'iron' | 'lava' | 'wallReinforced' | 'turretFlame' | 'obsidian'; count: number }[];
       onto?: 'ground' | 'water';
     };
 
@@ -151,6 +151,15 @@ export const HOTBAR: HotbarAction[] = [
     color: 0xff8030,
     tile: TileType.TurretFlame,
     cost: [{ material: 'turretFlame', count: 1 }],
+  },
+  {
+    kind: 'place',
+    label: 'Wall O',
+    name: 'Obsidian Wall',
+    description: 'The toughest wall in the game. Mine obsidian on cave floor 3. Cost: 2 obsidian.',
+    color: 0x3a3050,
+    tile: TileType.WallObsidian,
+    cost: [{ material: 'obsidian', count: 2 }],
   },
   {
     kind: 'hammer',
