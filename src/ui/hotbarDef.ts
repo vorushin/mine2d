@@ -221,16 +221,34 @@ export const PRIMARY_HOTBAR_SLOTS: readonly number[] = [
   findIndex('Rod'),
 ];
 
-export function cyclePrimaryHotbarSlot(currentSlot: number, dir: 1 | -1): number {
+export function cyclePrimaryHotbarSlot(
+  currentSlot: number,
+  dir: 1 | -1,
+  isAllowed: (slot: number) => boolean = () => true,
+): number {
+  const n = PRIMARY_HOTBAR_SLOTS.length;
   const currentIdx = PRIMARY_HOTBAR_SLOTS.indexOf(currentSlot);
   const start = currentIdx >= 0 ? currentIdx : (dir > 0 ? -1 : 0);
-  const next = (start + dir + PRIMARY_HOTBAR_SLOTS.length) % PRIMARY_HOTBAR_SLOTS.length;
-  return PRIMARY_HOTBAR_SLOTS[next];
+  for (let step = 1; step <= n; step++) {
+    const next = PRIMARY_HOTBAR_SLOTS[(((start + dir * step) % n) + n) % n];
+    if (isAllowed(next)) return next;
+  }
+  return currentSlot;
+}
+
+/** True when the active campaign level hasn't unlocked this hotbar entry yet. */
+export function hotbarCampaignLocked(slot: number, state: GameState): boolean {
+  const rules = state.campaign?.rules;
+  if (!rules) return false;
+  const act = HOTBAR[slot];
+  if (!act) return false;
+  return !rules.hotbar.includes(act.label);
 }
 
 export function hotbarAvailable(slot: number, state: GameState): boolean {
   const act = HOTBAR[slot];
   if (!act) return false;
+  if (hotbarCampaignLocked(slot, state)) return false;
   switch (act.kind) {
     case 'mine':
       return true;

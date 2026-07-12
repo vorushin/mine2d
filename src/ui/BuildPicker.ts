@@ -33,6 +33,7 @@ export class BuildPicker {
   }[] = [];
   private closeBtn: Phaser.GameObjects.Rectangle;
   private closeLabel: Phaser.GameObjects.Text;
+  private rows = ROWS;
 
   constructor(scene: Phaser.Scene, state: GameState, cb: BuildPickerCallbacks) {
     this.scene = scene;
@@ -45,9 +46,13 @@ export class BuildPicker {
       .setInteractive();
     this.backdrop.on('pointerdown', () => this.cb.onClose());
 
+    const pickerCells = buildPickerCells(state);
+    // Campaign levels can gate part of the grid — shrink to the rows in use.
+    this.rows = Math.max(1, Math.ceil(pickerCells.length / COLS));
+
     this.panel = scene.add.rectangle(0, 0,
       COLS * CELL_W + (COLS - 1) * GAP + PANEL_PAD * 2,
-      ROWS * CELL_H + (ROWS - 1) * GAP + PANEL_PAD * 2 + 28,
+      this.rows * CELL_H + (this.rows - 1) * GAP + PANEL_PAD * 2 + 28,
       0x1a1c22, 0.96)
       .setStrokeStyle(2, 0x88aaff, 0.6)
       .setScrollFactor(0)
@@ -55,7 +60,6 @@ export class BuildPicker {
 
     this.container.add([this.backdrop, this.panel]);
 
-    const pickerCells = buildPickerCells(state);
     for (let i = 0; i < pickerCells.length; i++) {
       const data = pickerCells[i];
       const bg = scene.add.rectangle(0, 0, CELL_W, CELL_H, data.color, data.available ? 0.85 : 0.3)
@@ -94,7 +98,7 @@ export class BuildPicker {
     const h = this.scene.scale.height;
     this.backdrop.setSize(w, h);
     const panelW = COLS * CELL_W + (COLS - 1) * GAP + PANEL_PAD * 2;
-    const panelH = ROWS * CELL_H + (ROWS - 1) * GAP + PANEL_PAD * 2 + 28;
+    const panelH = this.rows * CELL_H + (this.rows - 1) * GAP + PANEL_PAD * 2 + 28;
     const panelX = w / 2;
     const panelY = h * 0.55;
     this.panel.setPosition(panelX, panelY);

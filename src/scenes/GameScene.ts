@@ -42,8 +42,14 @@ import { bossLoot, crateLoot, rollKillDrops, treasureDigLoot, vaultLoot } from '
 import { HERO_BLAST_DAMAGE, HERO_BLAST_MAX_CHARGE, HERO_BLAST_RADIUS_PX, addHeroCharge, canUseHeroBlast as canUseHeroBlastState, consumeHeroBlast, heroChargeForKill } from '../systems/HeroBlast';
 import { TileType, TILE_SPECS, MaterialId, isBreakable, isPlaceableGround } from '../world/tileTypes';
 import { TEX } from '../gfx/textures';
-import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable } from '../ui/hotbarDef';
+import { HOTBAR, cyclePrimaryHotbarSlot, hotbarAvailable, hotbarCampaignLocked } from '../ui/hotbarDef';
 import { BOMB_DAMAGE, BOMB_RADIUS } from '../config';
+import {
+  CampaignNight, campaignAllowsCaves, campaignNightPlan, campaignShopClosed,
+  levelById, makeCampaignRunState, objectiveLabel, starsForNights, updateCampaignObjectives,
+} from '../systems/Campaign';
+import { CampaignStore } from '../systems/CampaignStore';
+import type { BossKind } from '../systems/Bosses';
 
 const SPIKE_TRAP_DAMAGE = 7;
 const SPIKE_TRAP_TICK_MS = 650;
@@ -100,6 +106,9 @@ export class GameScene extends Phaser.Scene {
 
   private pendingLoad: SaveSnapshot | null = null;
   private pendingRunConfig: { classId: ClassId; buddyId: CompanionId | null; modifierId: ModifierId | null } | null = null;
+  private pendingCampaign: { levelId: string } | null = null;
+  /** Boss kind forced by the campaign night script (null = standard rotation). */
+  private campaignBossKind: Exclude<BossKind, 'king'> | null = null;
 
   constructor() {
     super('Game');
@@ -108,9 +117,11 @@ export class GameScene extends Phaser.Scene {
   init(data?: {
     loadSnapshot?: SaveSnapshot;
     runConfig?: { classId: ClassId; buddyId: CompanionId | null; modifierId: ModifierId | null };
+    campaign?: { levelId: string };
   }): void {
     this.pendingLoad = data?.loadSnapshot ?? null;
     this.pendingRunConfig = data?.runConfig ?? null;
+    this.pendingCampaign = data?.campaign ?? null;
   }
 
   create(): void {
@@ -120,8 +131,26 @@ export class GameScene extends Phaser.Scene {
     const runConfig = this.pendingRunConfig;
     this.pendingRunConfig = null;
 
+    const campaignDef = this.pendingCampaign ? levelById(this.pendingCampaign.levelId) : null;
+    this.pendingCampaign = null;
+    this.campaignBossKind = null;
+
     if (loaded) {
       this.state = loaded.state;
+      this.state.campaign = null; // classic saves never carry campaign runs
+    } else if (campaignDef) {
+      this.state = makeGameState();
+      this.state.campaign = makeCampaignRunState(campaignDef);
+      this.state.nightNumber = campaignDef.startNight;
+      this.state.score = campaignDef.startNight - 1;
+      this.state.playerMaxHp = campaignDef.maxHp;
+      this.state.playerHp = campaignDef.maxHp;
+      this.state.modifierId = campaignDef.worldModifier;
+      this.state.buddyId = campaignDef.buddy ?? null;
+      Object.assign(this.state, campaignDef.start ?? {});
+      for (const [material, count] of Object.entries(campaignDef.startInventory)) {
+        if (count && count > 0) addItem(this.state.inventory, material as MaterialId, count);
+      }
     } else {
       this.state = makeGameState();
       this.state.playerHp = PLAYER_MAX_HP;
@@ -138,7 +167,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x0e1116);
     this.physics.world.setBounds(0, 0, WORLD_WIDTH * TILE_SIZE, WORLD_HEIGHT * TILE_SIZE);
 
-    const seed = Math.floor(Math.random() * 2 ** 31);
+    const seed = campaignDef ? campaignDef.seed : Math.floor(Math.random() * 2 ** 31);
     if (loaded) {
       this.world = new World(this, {
         tiles: loaded.tiles,
@@ -206,24 +235,35 @@ export class GameScene extends Phaser.Scene {
     this.cycle = new DayNightCycle(this.state);
 
     this.cycle.events.on('night_started', (_n: number, baseTarget: number) => {
-      this.nightTwist = chooseNightTwist(this.state.nightNumber);
+      // Campaign levels run hand-scripted nights; classic runs roll the dice.
+      const plan: CampaignNight | null = this.state.campaign
+        ? campaignNightPlan(this.state.campaign, this.state.nightNumber)
+        : null;
+      this.nightTwist = plan
+        ? NIGHT_TWISTS[plan.twist ?? 'normal']
+        : chooseNightTwist(this.state.nightNumber);
       // Endless+ (after beating the King): bigger sieges
-      const adjustedBase = this.state.endlessPlus ? Math.ceil(baseTarget * 1.5) : baseTarget;
+      const adjustedBase = plan ? plan.target : this.state.endlessPlus ? Math.ceil(baseTarget * 1.5) : baseTarget;
       // Intact graveyards feed the horde
       const intactCrypts = findCrypts(this.surfaceTiles).length;
       const graveBonus = graveyardNightBonus(intactCrypts, adjustedBase);
-      const target = this.director.beginNight(adjustedBase, this.nightTwist, graveBonus);
+      const target = this.director.beginNight(adjustedBase, this.nightTwist, graveBonus, plan
+        ? { exactTarget: true, bossMode: plan.boss ? 'force' : 'off' }
+        : undefined);
+      this.campaignBossKind = plan && plan.boss && plan.boss !== true ? plan.boss : null;
       this.fallenThisNight = [];
       sounds.nightStart();
-      const isBossNight = this.state.nightNumber % 5 === 0;
+      const isBossNight = plan ? !!plan.boss : this.state.nightNumber % 5 === 0;
       this.bloodMoon = isBossNight;
       music.setTheme(isBossNight ? 'boss' : 'night');
       const graveNote = graveBonus > 0 ? `  ·  +${graveBonus} from graveyards ⚰` : '';
       const sub = isBossNight
         ? `🩸 BLOOD MOON  ·  ${target} zombies + BOSS${graveNote}`
-        : this.nightTwist.kind !== 'normal'
-          ? `${this.nightTwist.label}  ·  ${target} zombies  ·  ${this.nightTwist.subtitle}${graveNote}`
-          : `${target} zombies incoming${graveNote}`;
+        : target === 0
+          ? 'a quiet night… ✨'
+          : this.nightTwist.kind !== 'normal'
+            ? `${this.nightTwist.label}  ·  ${target} zombies  ·  ${this.nightTwist.subtitle}${graveNote}`
+            : `${target} zombies incoming${graveNote}`;
       this.showBanner(`NIGHT ${this.state.nightNumber}`, sub);
       if (isBossNight) this.cameras.main.shake(400, 0.006);
     });
@@ -393,6 +433,10 @@ export class GameScene extends Phaser.Scene {
     });
 
     const selectToolHotbar = (slot: number) => {
+      if (hotbarCampaignLocked(slot, this.state)) {
+        this.showHint('🔒 Not unlocked yet — keep playing the campaign');
+        return;
+      }
       const ui = this.scene.get('UI') as Phaser.Scene & { events: Phaser.Events.EventEmitter };
       if (ui?.events) ui.events.emit('select_tool_hotbar', slot);
       else {
@@ -426,7 +470,7 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on('wheel', (_p: any, _obj: any, _dx: number, dy: number) => {
       const dir = dy > 0 ? 1 : -1;
-      selectToolHotbar(cyclePrimaryHotbarSlot(this.state.hotbarSlot, dir));
+      selectToolHotbar(cyclePrimaryHotbarSlot(this.state.hotbarSlot, dir, (s) => !hotbarCampaignLocked(s, this.state)));
     });
 
     // Zombie-world events → sounds + particles
@@ -821,6 +865,11 @@ export class GameScene extends Phaser.Scene {
     const standing = this.world.getTileAt(p.x, p.y);
     if (standing) {
       if (standing.type === TileType.CaveEntrance && this.state.depth === 0) {
+        if (!campaignAllowsCaves(this.state)) {
+          this.showHint('🔒 The Deep Dark is sealed on this level');
+          sounds.click();
+          return;
+        }
         this.lastEntrance = { x: p.x, y: p.y };
         this.changeDepth(1);
         return;
@@ -841,6 +890,11 @@ export class GameScene extends Phaser.Scene {
         const t = this.world.getTileAt(tx, ty);
         if (!t) continue;
         if (t.type === TileType.ShopNPC) {
+          if (campaignShopClosed(this.state)) {
+            this.showHint('🔒 The shop is closed on this level');
+            sounds.click();
+            return;
+          }
           this.openModal('shop');
           return;
         }
@@ -1072,6 +1126,10 @@ export class GameScene extends Phaser.Scene {
       sounds.place();
       this.state.stats.tilesPlaced += 1;
       this.recordDailyQuestProgress('build');
+      if (this.state.campaign) {
+        const byTile = this.state.campaign.counters.buildByTile;
+        byTile[act.tile] = (byTile[act.tile] ?? 0) + 1;
+      }
       if (act.tile === TileType.SpikeTrap) this.showHint('Trap set: lure zombies over the spikes');
       if (act.tile === TileType.TurretBasic || act.tile === TileType.TurretFlame) {
         const kind =
@@ -1252,6 +1310,7 @@ export class GameScene extends Phaser.Scene {
     this.cancelFishing();
     this.effects.burst(x, y, 0x8fc7ff, 14, 120, 500, 1.1);
     sounds.pickup();
+    if (this.state.campaign) this.state.campaign.counters.fish += 1;
     const roll = Math.random();
     if (roll < 0.45) {
       const heal = 10;
@@ -1619,13 +1678,18 @@ export class GameScene extends Phaser.Scene {
     // Interact prompt: show when near shop/door
     this.updateInteractPrompt();
 
+    // Campaign objectives tick (may finish the level and freeze the run)
+    this.tickCampaign();
+
     // Player death
     if (this.state.playerHp <= 0 && this.state.running) {
       this.state.running = false;
       sounds.playerHurt();
-      // Bank Star Coins for the run (once)
+      const campaignLevelId = this.state.campaign?.levelId ?? null;
+      // Bank Star Coins for the run (once) — classic runs only; campaign
+      // levels pay a fixed reward on completion instead.
       let coinsEarned = 0;
-      if (!this.state.runMeta.coinsAwarded) {
+      if (!campaignLevelId && !this.state.runMeta.coinsAwarded) {
         this.state.runMeta.coinsAwarded = true;
         coinsEarned = starCoinsForRun({
           nights: this.state.score,
@@ -1637,13 +1701,60 @@ export class GameScene extends Phaser.Scene {
         MetaStore.addCoins(coinsEarned);
       }
       this.time.delayedCall(600, () => {
-        SaveStore.updateBestScore(this.state.score);
-        // Death ends the run — clear the save so "Continue" doesn't offer it
-        SaveLoad.clear();
+        if (!campaignLevelId) {
+          SaveStore.updateBestScore(this.state.score);
+          // Death ends the run — clear the save so "Continue" doesn't offer it
+          SaveLoad.clear();
+        }
         this.scene.stop('UI');
-        this.scene.start('GameOver', { score: this.state.score, stats: this.state.stats, state: this.state, coinsEarned });
+        this.scene.start('GameOver', { score: this.state.score, stats: this.state.stats, state: this.state, coinsEarned, campaignLevelId });
       });
     }
+  }
+
+  /** Latch campaign objectives; celebrate the ones that just completed. */
+  private tickCampaign(): void {
+    const camp = this.state.campaign;
+    if (!camp || camp.finished || !this.state.running) return;
+    const res = updateCampaignObjectives(this.state);
+    if (!res) return;
+    for (const objective of res.newlyDone) {
+      sounds.pickup();
+      this.effects.burst(this.player.x, this.player.y - 10, 0x9cff9c, 18, 130, 650, 1.2);
+      this.popNumber(this.player.x, this.player.y - 26, '✅ objective!', '#a0ffa0');
+      this.showHint(`✅ ${objectiveLabel(objective)}`);
+      this.gainHeroCharge(20);
+    }
+    if (res.allDone) this.finishCampaignLevel();
+  }
+
+  /** All objectives done: bank stars & coins, celebrate, back to the map. */
+  private finishCampaignLevel(): void {
+    const camp = this.state.campaign;
+    if (!camp || camp.finished) return;
+    const def = levelById(camp.levelId);
+    if (!def) return;
+    camp.finished = true;
+    this.state.running = false;
+    const nightsTaken = Math.max(0, this.state.nightNumber - camp.startNight);
+    const stars = starsForNights(def, nightsTaken);
+    const result = CampaignStore.completeLevel(def.id, stars, nightsTaken);
+    const coins = result.firstTime ? def.reward : 0;
+    if (coins > 0) MetaStore.addCoins(coins);
+    music.setTheme('victory');
+    sounds.cake();
+    // If the King just fell, let his banner land first.
+    const delayMs = this.state.victory ? 2000 : 0;
+    this.time.delayedCall(delayMs, () => {
+      this.cameras.main.shake(300, 0.008);
+      this.launchFireworks();
+      const coinNote = coins > 0 ? `  ·  +${coins} ⭐ Star Coins` : '';
+      this.showBanner('🏁 LEVEL COMPLETE', `${def.title}  ·  ${'⭐'.repeat(stars)}${coinNote}`);
+    });
+    this.time.delayedCall(2800 + delayMs, () => {
+      this.scene.stop('UI');
+      this.scene.start('Campaign', { justCompleted: { levelId: def.id, stars, coins } });
+    });
   }
 
   private spawnChickens(): void {
@@ -1661,6 +1772,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startDailyQuest(withBanner: boolean): void {
+    // Campaign levels have their own objectives — no daily quests on top.
+    if (this.state.campaign) return;
     const alreadyHadQuestForDay = this.state.dailyQuest?.day === this.state.nightNumber;
     const quest = ensureDailyQuest(this.state);
     if (alreadyHadQuestForDay) return;
@@ -1835,7 +1948,7 @@ export class GameScene extends Phaser.Scene {
   private spawnBoss(): void {
     const { tx, ty } = this.pickSpawnEdge();
     const wc = this.world.tileToWorldCenter(tx, ty);
-    const kind = bossKindForNight(this.state.nightNumber);
+    const kind = this.campaignBossKind ?? bossKindForNight(this.state.nightNumber);
     const boss = new Zombie(this, this.world, wc.x, wc.y, specForBossKind(kind, this.state.nightNumber));
     this.zombies.push(boss);
     this.necroTimerMs = NECRO_CHANNEL_EVERY_MS * 0.6; // first ritual comes a bit sooner
@@ -1985,7 +2098,8 @@ export class GameScene extends Phaser.Scene {
   /** The King is dead. Fireworks, cake, credits, Endless+. */
   private triggerVictory(x: number, y: number): void {
     this.state.victory = true;
-    this.state.endlessPlus = true;
+    // Campaign finale hands off to the level-complete flow instead of Endless+.
+    this.state.endlessPlus = !this.state.campaign;
     this.state.runMeta.bossKills += 1;
     MetaStore.recordVictory();
     music.setTheme('victory');
@@ -2016,6 +2130,12 @@ export class GameScene extends Phaser.Scene {
     for (const l of loot) {
       this.pickups.push(new Pickup(this, x + (Math.random() - 0.5) * 40, y + (Math.random() - 0.5) * 40, l.m, l.c));
     }
+    // Campaign: tickCampaign sees `victory` and runs the level-complete
+    // fanfare + map handoff — no credits-over-paused-run, no autosave.
+    if (this.state.campaign) {
+      this.showBanner('👑 THE KING HAS FALLEN', 'the campaign is won!');
+      return;
+    }
     this.saveRun('Victory saved!');
     this.showBanner('👑 THE KING HAS FALLEN', 'YOU BEAT THE GAME!');
     this.time.delayedCall(2600, () => {
@@ -2032,6 +2152,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(60, 0.002);
     this.state.stats.zombiesKilled += 1;
     this.recordDailyQuestProgress('kill');
+    if (this.state.campaign) {
+      const byVariant = this.state.campaign.counters.killsByVariant;
+      const v = variant ?? 'normal';
+      byVariant[v] = (byVariant[v] ?? 0) + 1;
+    }
     this.gainHeroCharge(heroChargeForKill(variant));
 
     // The King's fall ends the story (and starts Endless+)
@@ -2117,7 +2242,9 @@ export class GameScene extends Phaser.Scene {
     const p = this.world.worldToTile(this.player.x, this.player.y);
     let prompt = '';
     const standing = this.world.getTileAt(p.x, p.y);
-    if (standing?.type === TileType.CaveEntrance) prompt = 'E — descend into the Deep Dark';
+    if (standing?.type === TileType.CaveEntrance) {
+      prompt = campaignAllowsCaves(this.state) ? 'E — descend into the Deep Dark' : '🔒 sealed — unlocks later in the campaign';
+    }
     else if (standing?.type === TileType.LadderDown) prompt = 'E — climb deeper';
     else if (standing?.type === TileType.LadderUp) prompt = 'E — climb up';
     if (!prompt) {
@@ -2125,7 +2252,10 @@ export class GameScene extends Phaser.Scene {
         for (let dx = -1; dx <= 1; dx++) {
           const t = this.world.getTileAt(p.x + dx, p.y + dy);
           if (!t) continue;
-          if (t.type === TileType.ShopNPC) { prompt = 'E — open Shop'; break outer; }
+          if (t.type === TileType.ShopNPC) {
+            prompt = campaignShopClosed(this.state) ? '🔒 the shop opens later in the campaign' : 'E — open Shop';
+            break outer;
+          }
           if (t.type === TileType.DoorWood) { prompt = 'E — open/close door'; break outer; }
           if (t.type === TileType.ThroneGate) {
             prompt = this.state.hasCrystalKey ? 'E — unlock the Throne Room 👑' : 'E — inspect the sealed gate';
@@ -2242,6 +2372,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   saveRun(hintText = 'Game saved'): void {
+    // Campaign levels are one-sitting runs — never touch the classic-run save.
+    if (this.state.campaign) return;
     const ok = SaveLoad.save({
       state: this.state,
       tiles: this.surfaceTiles,

@@ -7,6 +7,8 @@ import { music } from '../systems/Music';
 import { ClassId, CompanionId, MetaStore, ModifierId } from '../systems/MetaStore';
 import { CLASS_SPECS } from '../systems/Classes';
 import { COMPANION_SPECS } from '../entities/Companion';
+import { CampaignStore } from '../systems/CampaignStore';
+import { CAMPAIGN_LEVELS } from '../systems/Campaign';
 
 interface PickerChip {
   bg: Phaser.GameObjects.Rectangle;
@@ -97,6 +99,8 @@ export class MenuScene extends Phaser.Scene {
       best > 0 ? `★ best ${best} night${best === 1 ? '' : 's'}` : '★ no score yet',
       `⭐ ${meta.coins} coins`,
     ];
+    const campaignDone = CampaignStore.completedCount();
+    if (campaignDone > 0) statusBits.push(`🗺 ${campaignDone}/${CAMPAIGN_LEVELS.length} missions`);
     if (meta.victories > 0) statusBits.push(`👑 ${meta.victories} victor${meta.victories === 1 ? 'y' : 'ies'}`);
     this.add.text(w / 2, h / 2 - 38, statusBits.join('   ·   '), {
       fontFamily: 'ui-monospace, monospace', fontSize: '14px', color: '#ffd166',
@@ -147,6 +151,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     mkButton(hasSave ? '▶  New Run' : '▶  Start Run', 0x3a7a3a, 0x4a9a4a, true, () => this.openPicker());
+    mkButton('🗺  Campaign', 0x2a5a7a, 0x3a77a0, true, () => this.scene.start('Campaign'));
     mkButton('⭐  Hero\'s Hut', 0x6e5a1a, 0x8a7228, false, () => this.scene.start('HeroHut'));
     if (MetaStore.get().victories > 0) {
       mkButton('👑  Replay Credits', 0x4a2a6e, 0x5f3a8a, false, () => {

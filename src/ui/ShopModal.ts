@@ -3,6 +3,7 @@ import { GameState, hasItem } from '../state/GameState';
 import { MaterialId } from '../world/tileTypes';
 import { SHOP_OFFERS, buy, firstAffordablePayment } from '../systems/Shop';
 import { RECIPES, applyCraft, canCraft as canCraftRecipe } from '../systems/Crafting';
+import { campaignAllowsOffer, campaignAllowsRecipe } from '../systems/Campaign';
 
 export interface ModalDeps {
   state: GameState;
@@ -208,21 +209,33 @@ export class Modal {
     this.contentContainer.setMask(mask);
     this.container.add(this.contentContainer);
 
-    // Rows
+    // Rows — campaign levels only list what the road has unlocked so far
+    const offers = SHOP_OFFERS.filter((o) => campaignAllowsOffer(this.deps.state, o.id));
+    const recipes = RECIPES.filter((r) => campaignAllowsRecipe(this.deps.state, r.id));
     let rowY = this.contentTop + ROW_H / 2;
     if (this.deps.mode === 'shop') {
-      for (const offer of SHOP_OFFERS) {
+      for (const offer of offers) {
         this.renderOfferRow(offer, rowY, panelX, panelW);
         rowY += ROW_H;
       }
     } else {
-      for (const recipe of RECIPES) {
+      for (const recipe of recipes) {
         this.renderRecipeRow(recipe, rowY, panelX, panelW);
         rowY += ROW_H;
       }
     }
+    const rowCount = this.deps.mode === 'shop' ? offers.length : recipes.length;
+    if (rowCount === 0) {
+      const empty = this.scene.add.text(panelX + panelW / 2, this.contentTop + 40,
+        this.deps.mode === 'shop'
+          ? 'Nothing in stock yet.\nKeep playing the campaign to open the market!'
+          : 'No recipes known yet.\nKeep playing the campaign to learn crafting!', {
+          fontFamily: 'system-ui', fontSize: '14px', color: '#9eb0c4', align: 'center',
+        }).setOrigin(0.5, 0);
+      this.contentContainer!.add(empty);
+    }
 
-    const totalHeight = (this.deps.mode === 'shop' ? SHOP_OFFERS.length : RECIPES.length) * ROW_H;
+    const totalHeight = rowCount * ROW_H;
     this.maxScroll = Math.max(0, totalHeight - contentH);
     this.scrollY = Phaser.Math.Clamp(this.scrollY, 0, this.maxScroll);
     this.contentContainer.y = -this.scrollY;

@@ -25,6 +25,7 @@ const CONTROLS: [string, string][] = [
 ];
 
 const EVENTS: [string, string][] = [
+  ['🗺 Campaign', '18 missions across 6 worlds — tools unlock as you go (Menu → Campaign)'],
   ['🎯 Daily Quest', 'Follow the HUD goal for bonus resources'],
   ['⚰ Graveyards', 'Each crypt adds +25% zombies at night — raid it by day!'],
   ['🏆 Bosses', 'Every 5th night: Necromancer, Spider Queen, or Stone Golem'],

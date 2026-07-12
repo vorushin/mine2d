@@ -13,11 +13,23 @@ export interface SpawnRequest {
 
 const BOSS_DELAY_MS = 15000;
 
+export interface BeginNightOpts {
+  /**
+   * Boss scheduling: 'auto' (default) spawns on every 5th night, 'force'
+   * spawns one tonight regardless, 'off' suppresses it. Campaign night
+   * scripts always pass an explicit 'force'/'off'.
+   */
+  bossMode?: 'auto' | 'force' | 'off';
+  /** Use baseTarget verbatim (campaign scripts are hand-tuned; no twist multiplier, 0 allowed). */
+  exactTarget?: boolean;
+}
+
 export class SpawnDirector {
   private nightTarget = 0;
   private nightSpawned = 0;
   private spawnTimerMs = 0;
   private bossSpawned = false;
+  private bossMode: 'auto' | 'force' | 'off' = 'auto';
   private caveTimerMs = 0;
   private rand: () => number;
 
@@ -26,11 +38,14 @@ export class SpawnDirector {
   }
 
   /** Returns the twist-adjusted zombie target for the night. */
-  beginNight(baseTarget: number, twist: NightTwist, graveyardBonus = 0): number {
-    this.nightTarget = modifiedNightTarget(baseTarget, twist) + graveyardBonus;
+  beginNight(baseTarget: number, twist: NightTwist, graveyardBonus = 0, opts?: BeginNightOpts): number {
+    this.nightTarget = opts?.exactTarget
+      ? Math.max(0, Math.floor(baseTarget)) + graveyardBonus
+      : modifiedNightTarget(baseTarget, twist) + graveyardBonus;
     this.nightSpawned = 0;
     this.spawnTimerMs = 0;
     this.bossSpawned = false;
+    this.bossMode = opts?.bossMode ?? 'auto';
     return this.nightTarget;
   }
 
@@ -66,7 +81,8 @@ export class SpawnDirector {
       }
     }
 
-    if (!this.bossSpawned && state.nightNumber % 5 === 0 && state.phaseElapsedMs > BOSS_DELAY_MS) {
+    const bossTonight = this.bossMode === 'force' || (this.bossMode === 'auto' && state.nightNumber % 5 === 0);
+    if (!this.bossSpawned && bossTonight && state.phaseElapsedMs > BOSS_DELAY_MS) {
       this.bossSpawned = true;
       requests.push({ kind: 'boss' });
     }

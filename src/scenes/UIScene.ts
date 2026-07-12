@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameScene } from './GameScene';
-import { HOTBAR, HotbarAction, PRIMARY_HOTBAR_SLOTS, hotbarAvailable } from '../ui/hotbarDef';
+import { HOTBAR, HotbarAction, PRIMARY_HOTBAR_SLOTS, hotbarAvailable, hotbarCampaignLocked } from '../ui/hotbarDef';
+import { campaignObjectiveLines, levelById } from '../systems/Campaign';
 import { GameState } from '../state/GameState';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 import { InHandBar } from '../ui/InHandBar';
@@ -67,6 +68,9 @@ export class UIScene extends Phaser.Scene {
   private bossHpBarBg?: Phaser.GameObjects.Rectangle;
   private bossHpBarFg?: Phaser.GameObjects.Rectangle;
   private bossHpLabel?: Phaser.GameObjects.Text;
+  /** Bottom edge of the quest/objectives box — HUD rows below it flow down. */
+  private questHudBottom = 0;
+  private buffHudBottom = 0;
 
   constructor() {
     super('UI');
@@ -222,7 +226,8 @@ export class UIScene extends Phaser.Scene {
     );
     const w = this.scale.width;
     const cx = w / 2;
-    const cy = 90;
+    // Below the quest/objectives checklist when one is showing
+    const cy = Math.max(90, this.questHudBottom + 30);
     this.bossHpBarBg.setPosition(cx, cy);
     this.bossHpBarFg.setPosition(cx - 198 + (396 * Math.max(0, boss.hp) / boss.maxHp) / 2, cy);
     this.bossHpBarFg.width = 396 * Math.max(0, boss.hp) / boss.maxHp;
@@ -320,6 +325,10 @@ export class UIScene extends Phaser.Scene {
   }
 
   private selectToolHotbar(hotbarIdx: number): void {
+    if (hotbarCampaignLocked(hotbarIdx, this.state)) {
+      this.gameScene.showHint('🔒 Not unlocked yet — keep playing the campaign');
+      return;
+    }
     if (this.placementHotbarIdx !== null) {
       this.placementHotbarIdx = null;
       this.prePlacementHotbarSlot = null;
@@ -572,6 +581,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   private renderQuestHud(): void {
+    this.questHudBottom = this.joystick ? 70 : 44;
+    if (this.state.campaign) {
+      this.renderCampaignHud();
+      return;
+    }
     const quest = this.state.dailyQuest;
     if (!quest) {
       this.questBg.setVisible(false);
@@ -587,10 +601,39 @@ export class UIScene extends Phaser.Scene {
       : `Goal: ${questProgressLabel(quest)} -> ${questRewardLabel(quest)}`;
     this.questBg.setPosition(w / 2, y).setDisplaySize(boxW, 24);
     this.questBg.setStrokeStyle(1, quest.completed ? 0x9cff9c : 0xffd166, 0.65);
+    this.questLabel.setAlign('center');
     this.questLabel.setText(label).setPosition(w / 2, y);
     this.questLabel.setColor(quest.completed ? '#a0ffa0' : '#ffec99');
     this.questBg.setVisible(true);
     this.questLabel.setVisible(true);
+    this.questHudBottom = y + 12;
+  }
+
+  /** Campaign levels show a stacked objective checklist instead of the daily quest. */
+  private renderCampaignHud(): void {
+    const camp = this.state.campaign!;
+    const def = levelById(camp.levelId);
+    const lines = campaignObjectiveLines(this.state);
+    if (!def || lines.length === 0) {
+      this.questBg.setVisible(false);
+      this.questLabel.setVisible(false);
+      return;
+    }
+    const allDone = lines.every((l) => l.done);
+    const text = [`🗺 ${def.title}`, ...lines.map((l) => l.text)].join('\n');
+    const w = this.scale.width;
+    const lineCount = lines.length + 1;
+    const boxH = 12 + lineCount * 15;
+    const boxW = Math.min(440, Math.max(280, w - 260));
+    const y = (this.joystick ? 82 : 54) - 12 + boxH / 2;
+    this.questBg.setPosition(w / 2, y).setDisplaySize(boxW, boxH);
+    this.questBg.setStrokeStyle(1, allDone ? 0x9cff9c : 0xffd166, 0.65);
+    this.questLabel.setAlign('left');
+    this.questLabel.setText(text).setPosition(w / 2, y);
+    this.questLabel.setColor(allDone ? '#a0ffa0' : '#ffec99');
+    this.questBg.setVisible(true);
+    this.questLabel.setVisible(true);
+    this.questHudBottom = y + boxH / 2;
   }
 
   private renderBuffHud(): void {
@@ -599,6 +642,7 @@ export class UIScene extends Phaser.Scene {
     if (buffs.hasteMs > 0) active.push(`${POWER_UP_SPECS.haste.shortLabel} ${Math.ceil(buffs.hasteMs / 1000)}s`);
     if (buffs.furyMs > 0) active.push(`${POWER_UP_SPECS.fury.shortLabel} ${Math.ceil(buffs.furyMs / 1000)}s`);
     if (buffs.shieldMs > 0) active.push(`${POWER_UP_SPECS.shield.shortLabel} ${Math.ceil(buffs.shieldMs / 1000)}s`);
+    this.buffHudBottom = this.questHudBottom;
     if (active.length === 0) {
       this.buffBg.setVisible(false);
       this.buffLabel.setVisible(false);
@@ -607,11 +651,12 @@ export class UIScene extends Phaser.Scene {
 
     const w = this.scale.width;
     const boxW = Math.min(360, Math.max(220, active.join('  |  ').length * 8 + 28));
-    const y = this.joystick ? 110 : 82;
+    const y = Math.max(this.joystick ? 110 : 82, this.questHudBottom + 16);
     this.buffBg.setPosition(w / 2, y).setDisplaySize(boxW, 22);
     this.buffLabel.setText(`Powers: ${active.join('  |  ')}`).setPosition(w / 2, y);
     this.buffBg.setVisible(true);
     this.buffLabel.setVisible(true);
+    this.buffHudBottom = y + 11;
   }
 
   private renderHeroBlastHud(): void {
@@ -619,7 +664,7 @@ export class UIScene extends Phaser.Scene {
     const pct = Math.max(0, Math.min(1, this.state.heroCharge / HERO_BLAST_MAX_CHARGE));
     const barW = Math.min(320, Math.max(220, w - 320));
     const x = w / 2 - barW / 2;
-    const y = this.joystick ? 136 : 106;
+    const y = Math.max(this.joystick ? 136 : 106, this.buffHudBottom + 14);
     this.heroBar.clear();
     this.heroBar.fillStyle(0x101722, 0.8);
     this.heroBar.fillRoundedRect(x, y, barW, 12, 6);
@@ -636,14 +681,16 @@ export class UIScene extends Phaser.Scene {
       const cell = this.hotbarCells[i];
       const act: HotbarAction = HOTBAR[cell.hotbarIndex];
       const selected = cell.hotbarIndex === this.state.hotbarSlot;
+      const locked = hotbarCampaignLocked(cell.hotbarIndex, this.state);
       const available = hotbarAvailable(cell.hotbarIndex, this.state);
       cell.bg.setStrokeStyle(selected ? 3 : 1, selected ? 0xffd166 : 0x555, selected ? 1 : 0.7);
-      cell.icon.setAlpha(available ? 1 : 0.35);
-      cell.label.setAlpha(available ? 1 : 0.5);
+      cell.icon.setAlpha(locked ? 0.12 : available ? 1 : 0.35);
+      cell.label.setText(locked ? '🔒' : act.label);
+      cell.label.setAlpha(locked ? 0.7 : available ? 1 : 0.5);
       let countText = '';
-      if (act.kind === 'ranged') {
+      if (!locked && act.kind === 'ranged') {
         countText = String(this.state.inventory.counts[act.ammo] ?? 0);
-      } else if (act.kind === 'throw') {
+      } else if (!locked && act.kind === 'throw') {
         countText = String(this.state.inventory.counts[act.ammo] ?? 0);
       }
       if (countText === '') {

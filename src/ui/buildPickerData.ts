@@ -1,4 +1,4 @@
-import { HOTBAR, hotbarAvailable, HotbarAction } from './hotbarDef';
+import { HOTBAR, hotbarAvailable, hotbarCampaignLocked, HotbarAction } from './hotbarDef';
 import { GameState } from '../state/GameState';
 
 function findIndex(label: string): number {
@@ -50,15 +50,17 @@ function costLabelFor(action: HotbarAction): string {
 }
 
 export function buildPickerCells(state: GameState): BuildPickerCell[] {
-  return BUILD_PICKER_SLOTS.map((idx) => {
-    const act = HOTBAR[idx];
-    return {
-      hotbarIndex: idx,
-      label: act.label,
-      costLabel: costLabelFor(act),
-      color: act.color,
-      available: hotbarAvailable(idx, state),
-      action: act,
-    };
-  });
+  return BUILD_PICKER_SLOTS
+    .filter((idx) => !hotbarCampaignLocked(idx, state))
+    .map((idx) => {
+      const act = HOTBAR[idx];
+      return {
+        hotbarIndex: idx,
+        label: act.label,
+        costLabel: costLabelFor(act),
+        color: act.color,
+        available: hotbarAvailable(idx, state),
+        action: act,
+      };
+    });
 }

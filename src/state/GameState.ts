@@ -1,5 +1,6 @@
 import { MaterialId } from '../world/tileTypes';
 import { ClassId, CompanionId, ModifierId } from '../systems/MetaStore';
+import type { CampaignRunState } from '../systems/Campaign';
 
 export interface Inventory {
   counts: Partial<Record<MaterialId, number>>;
@@ -98,6 +99,8 @@ export interface GameState {
   dailyQuest: DailyQuest | null;
   activeBuffs: ActiveBuffs;
   heroCharge: number;
+  /** Active campaign level (null on classic runs). Campaign runs never save. */
+  campaign: CampaignRunState | null;
 }
 
 export function makeGameState(): GameState {
@@ -131,5 +134,6 @@ export function makeGameState(): GameState {
     dailyQuest: null,
     activeBuffs: { hasteMs: 0, furyMs: 0, shieldMs: 0 },
     heroCharge: 0,
+    campaign: null,
   };
 }
